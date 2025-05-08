@@ -86,7 +86,6 @@ export default function TabLayout() {
           tabBarLabel: '',
           tabBarIcon: () => null, // Tạm thời không cần icon ở đây vì CustomAddButton tự xử lý
           tabBarButton: (props) => {
-            console.log('tabBarButton for addTransactionPlaceholder is being called'); // Kiểm tra log
             return (
               <CustomAddButton 
                 {...props}
