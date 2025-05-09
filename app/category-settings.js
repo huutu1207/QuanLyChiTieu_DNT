@@ -1,233 +1,340 @@
 // app/category-settings.js
-import React, { useState, useEffect } from 'react';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
-    SafeAreaView,
-    View,
-    Text,
-    TouchableOpacity,
-    StyleSheet,
-    FlatList,
-    Alert,
-    Platform,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons'; // Ví dụ sử dụng icons
+// Bỏ import Ionicons 
+import { MaterialIcons } from '@expo/vector-icons';
+import { onValue, ref, remove } from 'firebase/database'; // Import các hàm Firebase cần thiết
+import { database } from '../firebaseConfig'; // Đảm bảo firebaseConfig được import
 
-// Dữ liệu mẫu (nên được thay thế bằng dữ liệu thực tế)
-const MOCK_EXPENSE_CATEGORIES = [
-  { id: '1', name: 'Mua sắm', icon: 'cart-outline', type: 'expense' },
-  { id: '2', name: 'Đồ ăn', icon: 'restaurant-outline', type: 'expense' },
-  { id: '3', name: 'Điện thoại', icon: 'call-outline', type: 'expense' },
-  { id: '4', name: 'Giải trí', icon: 'game-controller-outline', type: 'expense' },
-  // ... thêm các danh mục khác
-];
-
-const MOCK_INCOME_CATEGORIES = [
-  { id: '101', name: 'Lương', icon: 'cash-outline', type: 'income' },
-  { id: '102', name: 'Thưởng', icon: 'gift-outline', type: 'income' },
-  // ... thêm các danh mục khác
-];
-
+// Tên các node trên Firebase
+const EXPENSE_CATEGORIES_NODE = 'categories'; 
+const INCOME_CATEGORIES_NODE = 'income_categories'; 
 
 export default function CategorySettingsScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams(); // Lấy params được truyền qua route
+    const router = useRouter();
+    const params = useLocalSearchParams();
 
-  const [activeTab, setActiveTab] = useState(params.type === 'income' ? 'income' : 'expense');
-  const [categories, setCategories] = useState([]);
+    const initialActiveTab = params.type === 'income' ? 'income' : 'expense';
+    const [activeTab, setActiveTab] = useState(initialActiveTab);
 
-  useEffect(() => {
-    loadCategories(activeTab);
-  }, [activeTab]);
+    const [expenseCategories, setExpenseCategories] = useState([]);
+    const [incomeCategories, setIncomeCategories] = useState([]);
 
-  const loadCategories = async (type) => {
-    // TODO: Implement logic để load danh mục từ storage/API
-    console.log(`Đang tải danh mục cho: ${type}`);
-    if (type === 'expense') {
-      setCategories(MOCK_EXPENSE_CATEGORIES);
-    } else if (type === 'income') {
-      setCategories(MOCK_INCOME_CATEGORIES);
-    } else {
-      setCategories([]);
-    }
-  };
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-  const handleDeleteCategory = (categoryId) => {
-    Alert.alert(
-      "Xác nhận xóa",
-      "Bạn có chắc chắn muốn xóa danh mục này không?",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Xóa",
-          style: "destructive",
-          onPress: () => {
-            // TODO: Implement logic xóa danh mục khỏi storage/API
-            setCategories(prevCategories => prevCategories.filter(cat => cat.id !== categoryId));
-            console.log('Đã xóa danh mục:', categoryId);
-          }
+    const loadCategories = useCallback(async (type) => {
+        setLoading(true);
+        setError(null);
+        const nodeName = type === 'expense' ? EXPENSE_CATEGORIES_NODE : INCOME_CATEGORIES_NODE;
+        const categoriesRef = ref(database, nodeName);
+
+        const unsubscribe = onValue(categoriesRef, (snapshot) => {
+            const data = snapshot.val();
+            const loadedCategories = [];
+            if (data) {
+                for (const key in data) {
+                    if (key !== 'add' && data[key].name && data[key].icon) {
+                        loadedCategories.push({
+                            id: key,
+                            ...data[key], // name, icon (giờ là emoji/text)
+                            type: type
+                        });
+                    }
+                }
+            }
+            if (type === 'expense') {
+                setExpenseCategories(loadedCategories);
+            } else {
+                setIncomeCategories(loadedCategories);
+            }
+            setLoading(false);
+        }, (firebaseError) => {
+            console.error(`Lỗi khi tải danh mục ${type}: `, firebaseError);
+            setError(`Không thể tải danh mục ${type}. Vui lòng thử lại.`);
+            setLoading(false);
+            if (type === 'expense') {
+                setExpenseCategories([]);
+            } else {
+                setIncomeCategories([]);
+            }
+        });
+        return unsubscribe;
+    }, []);
+
+    useEffect(() => {
+        let unsubscribeExpenses;
+        let unsubscribeIncomes;
+
+        const loadInitialData = async () => {
+            unsubscribeExpenses = await loadCategories('expense');
+            unsubscribeIncomes = await loadCategories('income');
         }
-      ]
-    );
-  };
+        loadInitialData();
 
-  const handleEditCategory = (category) => {
-    router.push({
-      pathname: '/edit-category-form', // Bạn cần tạo route và màn hình này
-      params: { ...category, currentTab: activeTab }
-    });
-  };
+        return () => {
+            if (unsubscribeExpenses) unsubscribeExpenses();
+            if (unsubscribeIncomes) unsubscribeIncomes();
+        };
+    }, [loadCategories]);
 
-  const renderCategoryItem = ({ item }) => (
-    <View style={styles.categoryItemContainer}>
-      <TouchableOpacity onPress={() => handleDeleteCategory(item.id)} style={styles.actionButton}>
-        <MaterialIcons name="remove-circle-outline" size={24} color="red" />
-      </TouchableOpacity>
-      <View style={styles.categoryInfo}>
-        <Ionicons name={item.icon || 'list-outline'} size={24} color="#555" style={styles.categoryIcon} />
-        <Text style={styles.categoryName}>{item.name}</Text>
-      </View>
-      <TouchableOpacity onPress={() => handleEditCategory(item)} style={styles.actionButton}>
-        <MaterialIcons name="drag-handle" size={24} color="#888" />
-      </TouchableOpacity>
-    </View>
-  );
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen
-        options={{
-          title: 'Cài đặt danh mục',
-          headerTitleAlign: 'center',
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: Platform.OS === 'ios' ? 10: 0, padding: 5}}>
-              <Ionicons name="arrow-back" size={28} color="#333" />
+    const handleDeleteCategory = async (categoryId, categoryType) => {
+        Alert.alert(
+            "Xác nhận xóa",
+            "Bạn có chắc chắn muốn xóa danh mục này không? Hành động này không thể hoàn tác.",
+            [
+                { text: "Hủy", style: "cancel" },
+                {
+                    text: "Xóa",
+                    style: "destructive",
+                    onPress: async () => {
+                        const nodeName = categoryType === 'expense' ? EXPENSE_CATEGORIES_NODE : INCOME_CATEGORIES_NODE;
+                        const categoryRef = ref(database, `${nodeName}/${categoryId}`);
+                        try {
+                            await remove(categoryRef);
+                            console.log('Đã xóa danh mục:', categoryId, 'loại:', categoryType);
+                            Alert.alert('Thành công', 'Đã xóa danh mục.');
+                        } catch (e) {
+                            console.error("Lỗi khi xóa danh mục: ", e);
+                            Alert.alert('Lỗi', 'Không thể xóa danh mục. Vui lòng thử lại.');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleEditCategory = (category) => {
+        router.push({
+            pathname: '/edit-category-form',
+            params: { ...category, currentTab: activeTab }
+        });
+    };
+
+    const renderCategoryItem = ({ item }) => (
+        <View style={styles.categoryItemContainer}>
+            <TouchableOpacity onPress={() => handleDeleteCategory(item.id, item.type)} style={styles.actionButton}>
+                <MaterialIcons name="remove-circle-outline" size={26} color="#FF6347" />
             </TouchableOpacity>
-          ),
-          headerStyle: { backgroundColor: '#FFD700' }, // Màu vàng cho header
-          headerTintColor: '#333', // Màu chữ header và icon nút back
-        }}
-      />
+            <View style={styles.categoryInfo}>
+                {/* Thay thế Ionicons bằng Text để hiển thị emoji/ký tự */}
+                <Text style={styles.categoryIconText}>{item.icon || '📄'}</Text>
+                <Text style={styles.categoryName}>{item.name}</Text>
+            </View>
+            <TouchableOpacity onPress={() => handleEditCategory(item)} style={styles.actionButton}>
+                <MaterialIcons name="edit" size={24} color="#007AFF" />
+            </TouchableOpacity>
+        </View>
+    );
 
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'expense' && styles.activeTabItem]}
-          onPress={() => setActiveTab('expense')}>
-          <Text style={[styles.tabText, activeTab === 'expense' && styles.activeTabText]}>Chi tiêu</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'income' && styles.activeTabItem]}
-          onPress={() => setActiveTab('income')}>
-          <Text style={[styles.tabText, activeTab === 'income' && styles.activeTabText]}>Thu nhập</Text>
-        </TouchableOpacity>
-      </View>
+    const currentCategories = activeTab === 'expense' ? expenseCategories : incomeCategories;
 
-      <FlatList
-        data={categories}
-        renderItem={renderCategoryItem}
-        keyExtractor={(item) => item.id.toString()}
-        style={styles.list}
-        ListEmptyComponent={<Text style={styles.emptyListText}>Không có danh mục nào.</Text>}
-      />
+    if (loading && currentCategories.length === 0) {
+        return (
+            <SafeAreaView style={styles.safeArea}>
+                <Stack.Screen options={{ title: 'Cài đặt danh mục', headerTitleAlign: 'center', headerStyle: { backgroundColor: '#FFD700' }, headerTintColor: '#333' }} />
+                <View style={styles.centeredMessage}>
+                    <ActivityIndicator size="large" color="#FFB300" />
+                    <Text style={styles.loadingText}>Đang tải danh mục...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
-      <TouchableOpacity
-        style={styles.addCategoryButton}
-        onPress={() => {
-          router.push({ pathname: '/create-category-form', params: { type: activeTab } });
-        }}>
-        <Ionicons name="add-circle" size={28} color="#fff" />
-        <Text style={styles.addCategoryButtonText}>Thêm danh mục</Text>
-      </TouchableOpacity>
-    </SafeAreaView>
-  );
+    return (
+        <SafeAreaView style={styles.safeArea}>
+            <Stack.Screen
+                options={{
+                    title: 'Cài đặt danh mục',
+                    headerTitleAlign: 'center',
+                    headerLeft: () => (
+                        <TouchableOpacity onPress={() => router.back()} style={styles.headerBackButton}>
+                            {/* Thay thế Ionicons bằng Text cho nút back */}
+                            <Text style={styles.headerBackIconText}>‹</Text>
+                        </TouchableOpacity>
+                    ),
+                    headerStyle: { backgroundColor: '#FFD700' },
+                    headerTintColor: '#333',
+                }}
+            />
+
+            <View style={styles.tabContainer}>
+                <TouchableOpacity
+                    style={[styles.tabItem, activeTab === 'expense' && styles.activeTabItem]}
+                    onPress={() => setActiveTab('expense')}>
+                    <Text style={[styles.tabText, activeTab === 'expense' && styles.activeTabText]}>Chi tiêu</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabItem, activeTab === 'income' && styles.activeTabItem]}
+                    onPress={() => setActiveTab('income')}>
+                    <Text style={[styles.tabText, activeTab === 'income' && styles.activeTabText]}>Thu nhập</Text>
+                </TouchableOpacity>
+            </View>
+
+            {loading && currentCategories.length > 0 && <ActivityIndicator style={{marginVertical: 10}} size="small" color="#FFB300" />}
+            {error && <Text style={styles.errorText}>{error}</Text>}
+
+            <FlatList
+                data={currentCategories}
+                renderItem={renderCategoryItem}
+                keyExtractor={(item) => item.id.toString()}
+                style={styles.list}
+                ListEmptyComponent={!loading ? <Text style={styles.emptyListText}>Không có danh mục nào cho mục {activeTab === 'expense' ? 'chi tiêu' : 'thu nhập'}.</Text> : null}
+                contentContainerStyle={{ flexGrow: 1 }}
+            />
+
+            <TouchableOpacity
+                style={styles.addCategoryButton}
+                onPress={() => {
+                    router.push({ pathname: '/create-category-form', params: { type: activeTab } });
+                }}>
+                {/* Thay thế Ionicons bằng Text cho nút thêm */}
+                <Text style={styles.addCategoryButtonIcon}>➕</Text>
+                <Text style={styles.addCategoryButtonText}>Thêm danh mục {activeTab === 'expense' ? 'chi' : 'thu'}</Text>
+            </TouchableOpacity>
+        </SafeAreaView>
+    );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#f0f0f0', // Màu nền chung cho phần dưới tab
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#FFD700', // Nền vàng cho cả dải tab
-  },
-  tabItem: { // Style cho cả tab active và inactive
-    flex: 1,
-    paddingVertical: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFD700', // Nền vàng cho các tab
-    borderBottomWidth: 3, // Gạch chân mặc định
-    borderBottomColor: 'transparent', // Gạch chân trong suốt cho tab không active
-  },
-  activeTabItem: { // Chỉ định nghĩa những gì khác biệt cho tab active
-    // backgroundColor: '#FFD700', // Không cần ghi đè backgroundColor nếu giống tabItem
-    borderBottomColor: '#333', // Gạch chân màu đen cho tab active
-  },
-  tabText: { // Chữ cho tab inactive
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#555', // Màu chữ xám cho tab không active
-  },
-  activeTabText: { // Chữ cho tab active
-    color: '#000', // Màu chữ đen cho tab active
-    fontWeight: 'bold',
-  },
-  list: {
-    flex: 1,
-    // marginTop: 5, // Bỏ marginTop nếu muốn danh sách sát tab hơn
-    backgroundColor: '#fff', // Nền trắng cho phần danh sách danh mục
-  },
-  categoryItemContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingVertical: 12,
-    paddingHorizontal: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  categoryInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 10,
-  },
-  categoryIcon: {
-    marginRight: 15,
-  },
-  categoryName: {
-    fontSize: 16,
-    color: '#333',
-  },
-  actionButton: {
-    padding: 5,
-  },
-  addCategoryButton: {
-    flexDirection: 'row',
-    backgroundColor: '#FFB300',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    margin: 15,
-    borderRadius: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-  },
-  addCategoryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  emptyListText: {
-    textAlign: 'center',
-    marginTop: 50,
-    fontSize: 16,
-    color: '#777',
-  },
+    safeArea: {
+        flex: 1,
+        backgroundColor: '#f0f0f0',
+    },
+    centeredMessage: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 10,
+        fontSize: 16,
+        color: '#555',
+    },
+    errorText: {
+        color: 'red',
+        textAlign: 'center',
+        padding: 10,
+        backgroundColor: '#ffe0e0',
+        margin: 10,
+        borderRadius: 5,
+    },
+    headerBackButton: { // Style cho TouchableOpacity của nút back
+        marginLeft: Platform.OS === 'ios' ? 10 : 0,
+        paddingHorizontal: 10, // Thêm padding ngang cho dễ bấm
+        paddingVertical: 5,
+    },
+    headerBackIconText: { // Style cho Text của icon back
+        fontSize: Platform.OS === 'ios' ? 32 : 28, // Kích thước lớn hơn cho iOS
+        color: '#333',
+        fontWeight: Platform.OS === 'ios' ? '300' : 'normal', // Mỏng hơn trên iOS
+    },
+    tabContainer: {
+        flexDirection: 'row',
+        backgroundColor: '#FFD700',
+    },
+    tabItem: {
+        flex: 1,
+        paddingVertical: 15,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFD700',
+        borderBottomWidth: 3,
+        borderBottomColor: 'transparent',
+    },
+    activeTabItem: {
+        borderBottomColor: '#333',
+    },
+    tabText: {
+        fontSize: 16,
+        fontWeight: '500',
+        color: '#555',
+    },
+    activeTabText: {
+        color: '#000',
+        fontWeight: 'bold',
+    },
+    list: {
+        flex: 1,
+        backgroundColor: '#fff',
+    },
+    categoryItemContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+        paddingVertical: 12,
+        paddingHorizontal: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    categoryInfo: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginLeft: 10,
+    },
+    // Style cho Text hiển thị icon (emoji) trong danh sách
+    categoryIconText: {
+        fontSize: 22, // Điều chỉnh kích thước emoji nếu cần
+        marginRight: 15,
+        color: '#444', // Có thể không cần nếu emoji đã có màu
+        minWidth: 25, // Đảm bảo có không gian tối thiểu cho icon
+        textAlign: 'center',
+    },
+    categoryName: {
+        fontSize: 16,
+        color: '#333',
+    },
+    actionButton: {
+        padding: 8,
+    },
+    addCategoryButton: {
+        flexDirection: 'row',
+        backgroundColor: '#FFB300',
+        paddingVertical: 15,
+        paddingHorizontal: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginHorizontal: 15,
+        marginBottom: Platform.OS === 'ios' ? 25 : 15,
+        marginTop: 10,
+        borderRadius: 8,
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+    },
+    // Style cho Text hiển thị icon (emoji) trên nút "Thêm danh mục"
+    addCategoryButtonIcon: {
+        fontSize: 22, // Kích thước emoji
+        color: '#fff', // Màu trắng cho emoji
+        marginRight: 0, // Bỏ marginLeft của addCategoryButtonText nếu icon đứng trước
+    },
+    addCategoryButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginLeft: 8, // Giữ lại marginLeft nếu icon đứng trước
+    },
+    emptyListText: {
+        textAlign: 'center',
+        marginTop: 50,
+        fontSize: 16,
+        color: '#777',
+        flex: 1,
+        textAlignVertical: 'center',
+    },
 });
