@@ -1,50 +1,25 @@
 // components/AddTransactionUI.js
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
-  View,
+  Dimensions,
+  FlatList,
+  ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  StyleSheet,
-  ScrollView, // Vẫn giữ ScrollView cho các tab không dùng FlatList
-  FlatList,
-  Dimensions,
+  View,
 } from 'react-native';
 
-// Dữ liệu tĩnh cho các danh mục chi tiêu (sau sẽ thông qua csdl)
-const defaultExpenseCategories = [
-    { id: '1', name: 'Mua sắm', icon: '🛒' },
-    { id: '2', name: 'Đồ ăn', icon: '🍔' },
-    { id: '3', name: 'Điện thoại', icon: '📱' },
-    { id: '4', name: 'Giải trí', icon: '🎤' },
-    { id: '5', name: 'Giáo dục', icon: '📖' },
-    { id: '6', name: 'Sắc đẹp', icon: '💅' },
-    { id: '7', name: 'Thể thao', icon: '🏊' },
-    { id: '8', name: 'Xã hội', icon: '👥' },
-    { id: '9', name: 'Vận tải', icon: '🚌' },
-    { id: '10', name: 'Quần áo', icon: '👕' },
-    { id: '11', name: 'Xe hơi', icon: '🚗' },
-    { id: '12', name: 'Rượu', icon: '🍷' },
-    { id: '13', name: 'Thuốc lá', icon: '🚭' },
-    { id: '14', name: 'Thiết bị ĐT', icon: '🎧' },
-    { id: '15', name: 'Du lịch', icon: '✈️' },
-    { id: '16', name: 'Sức khỏe', icon: '❤️‍🩹' },
-    { id: '17', name: 'Thú cưng', icon: '🐾' },
-    { id: '18', name: 'Sửa chữa', icon: '🛠️' },
-    { id: '19', name: 'Nhà ở', icon: '🏠' },
-    { id: '20', name: 'Nhà', icon: '🏡' },
-    { id: '21', name: 'Quà tặng', icon: '🎁' },
-    { id: '22', name: 'Quyên góp', icon: '💖' },
-    { id: '23', name: 'Vé số', icon: '🎟️' },
-    { id: '24', name: 'Đồ ăn nhẹ', icon: '🍰' },
-    { id: 'add', name: 'Thêm mới', icon: '+' },
-];
+// Hằng số cho nút "Thêm mới"
+const ADD_NEW_CATEGORY_ITEM = { id: 'add', name: 'Thêm mới', icon: '+' };
 
 const NUM_COLUMNS = 4;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const AddTransactionUI = ({
   initialTab = 'Chi tiêu',
-  expenseCategories = defaultExpenseCategories,
+  expenseCategories = [], // Mặc định là mảng rỗng
+  incomeCategories = [],  // Mặc định là mảng rỗng
   onCategorySelect,
   onNewCategoryPress,
 }) => {
@@ -75,13 +50,13 @@ const AddTransactionUI = ({
 
   // Hàm render một mục danh mục trong lưới
   const renderCategoryItem = ({ item }) => {
-    const isAddButton = item.icon === '+';
+    const isAddButton = item.id === 'add'; // Kiểm tra dựa trên id 'add'
     return (
       <TouchableOpacity
         style={styles.categoryItem}
         onPress={() => {
           if (isAddButton && onNewCategoryPress) {
-            onNewCategoryPress({ type: activeTab });
+            onNewCategoryPress({ type: activeTab }); // Gửi kèm loại tab (Chi tiêu/Thu nhập)
           } else if (!isAddButton && onCategorySelect) {
             onCategorySelect({ ...item, transactionType: activeTab });
           }
@@ -98,43 +73,84 @@ const AddTransactionUI = ({
   };
 
   // Hàm render nội dung cho tab "Chi tiêu" (sử dụng FlatList)
-  const renderExpenseContent = () => (
-    <FlatList
-      data={expenseCategories}
-      renderItem={renderCategoryItem}
-      keyExtractor={(item) => `expense-${item.id}`} // Đảm bảo key là duy nhất
-      numColumns={NUM_COLUMNS}
-      contentContainerStyle={styles.categoryList}
-    />
-  );
+  const renderExpenseContent = () => {
+    // Thêm nút "Thêm mới" vào cuối danh sách danh mục chi tiêu
+    const dataToRender = [...expenseCategories, ADD_NEW_CATEGORY_ITEM];
+    if (expenseCategories.length === 0) {
+        // Nếu không có danh mục nào, chỉ hiển thị nút thêm mới
+        // Hoặc bạn có thể hiển thị một thông báo "Chưa có danh mục nào"
+        return (
+            <FlatList
+                data={[ADD_NEW_CATEGORY_ITEM]}
+                renderItem={renderCategoryItem}
+                keyExtractor={(item) => `expense-${item.id}`}
+                numColumns={NUM_COLUMNS}
+                contentContainerStyle={styles.categoryList}
+                ListEmptyComponent={<Text style={styles.emptyListText}>Chưa có danh mục chi tiêu. Hãy thêm mới!</Text>}
+            />
+        );
+    }
+    return (
+        <FlatList
+            data={dataToRender}
+            renderItem={renderCategoryItem}
+            keyExtractor={(item) => `expense-${item.id}`}
+            numColumns={NUM_COLUMNS}
+            contentContainerStyle={styles.categoryList}
+        />
+    );
+  };
 
-  // Hàm render nội dung cho tab "Thu nhập"
-  const renderIncomeContent = () => (
-    // Dungf view cuộn
-    <ScrollView style={styles.scrollViewForSimpleContent}>
-      <View style={styles.contentContainer}>
-        <Text>Giao diện nhập Thu nhập (chưa triển khai)</Text>
-      </View>
-    </ScrollView>
-  );
+  // Hàm render nội dung cho tab "Thu nhập" (sử dụng FlatList)
+  const renderIncomeContent = () => {
+    // Thêm nút "Thêm mới" vào cuối danh sách danh mục thu nhập
+    const dataToRender = [...incomeCategories, ADD_NEW_CATEGORY_ITEM];
+     if (incomeCategories.length === 0) {
+        return (
+            <FlatList
+                data={[ADD_NEW_CATEGORY_ITEM]}
+                renderItem={renderCategoryItem}
+                keyExtractor={(item) => `income-${item.id}`}
+                numColumns={NUM_COLUMNS}
+                contentContainerStyle={styles.categoryList}
+                ListEmptyComponent={<Text style={styles.emptyListText}>Chưa có danh mục thu nhập. Hãy thêm mới!</Text>}
+            />
+        );
+    }
+    return (
+        <FlatList
+            data={dataToRender}
+            renderItem={renderCategoryItem}
+            keyExtractor={(item) => `income-${item.id}`} // Key riêng cho thu nhập
+            numColumns={NUM_COLUMNS}
+            contentContainerStyle={styles.categoryList}
+        />
+    );
+  };
 
 
   // Hàm chính để render nội dung của tab đang active
   const renderActiveTabContent = () => {
     switch (activeTab) {
       case 'Chi tiêu':
-        return renderExpenseContent(); // Trả về FlatList trực tiếp
+        return renderExpenseContent();
       case 'Thu nhập':
-        return renderIncomeContent(); // Trả về ScrollView bọc nội dung
+        return renderIncomeContent();
       default:
-        return null;
+        // Có thể render một placeholder hoặc một ScrollView đơn giản nếu không có tab nào khớp
+        return (
+            <ScrollView style={styles.scrollViewForSimpleContent}>
+                <View style={styles.contentContainer}>
+                    <Text>Vui lòng chọn một tab.</Text>
+                </View>
+            </ScrollView>
+        );
     }
   };
 
   return (
     <View style={styles.container}>
       {renderTabs()}
-      {/* View này sẽ chứa nội dung của tab, đảm bảo FlatList có không gian để mở rộng */}
       <View style={styles.tabContentContainer}>
         {renderActiveTabContent()}
       </View>
@@ -149,7 +165,7 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#FFD700',
+    backgroundColor: '#FFD700', // Màu vàng cho tab bar
   },
   tabItem: {
     flex: 1,
@@ -160,68 +176,77 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTabItem: {
-    borderBottomColor: '#333',
+    borderBottomColor: '#333', // Màu đen cho tab đang active
   },
   tabText: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#555',
+    color: '#555', // Màu xám đậm cho chữ tab không active
   },
   activeTabText: {
-    color: '#000',
+    color: '#000', // Màu đen cho chữ tab active
     fontWeight: 'bold',
   },
-  // Container cho nội dung của tab, đảm bảo nó chiếm không gian còn lại
   tabContentContainer: {
+    flex: 1, // Đảm bảo nội dung tab chiếm hết không gian còn lại
+  },
+  scrollViewForSimpleContent: {
     flex: 1,
   },
-  // Style cho ScrollView khi nội dung tab đơn giản (không phải FlatList)
-  scrollViewForSimpleContent: {
-    flex: 1, // Đảm bảo ScrollView cũng chiếm không gian
-  },
-  // Style cho View bên trong ScrollView (nếu cần padding chung)
-  contentContainer: {
+  contentContainer: { // Dùng cho nội dung đơn giản trong ScrollView
     padding: 20,
-    alignItems: 'center', // Hoặc tùy chỉnh theo layout của bạn
+    alignItems: 'center',
   },
-  // Style cho FlatList (danh sách danh mục)
   categoryList: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 8, // Padding ngang cho toàn bộ lưới
     paddingTop: 16,
-    // paddingBottom quan trọng nếu bạn muốn có khoảng trống ở cuối FlatList
-    paddingBottom: 16,
+    paddingBottom: 16, // Quan trọng để có khoảng trống ở cuối FlatList
   },
   categoryItem: {
-    width: (SCREEN_WIDTH - 16) / NUM_COLUMNS - 10, // (SCREEN_WIDTH - paddingNgangCuaList*2) / số_cột - marginNgangCuaItem*2
+    // Tính toán chiều rộng dựa trên số cột và padding/margin
+    // (SCREEN_WIDTH - tổngPaddingNgangCuaList) / số_cột - tổngMarginNgangCuaItem
+    width: (SCREEN_WIDTH - 16) / NUM_COLUMNS - 10, // 16 là paddingHorizontal*2, 10 là marginHorizontal*2
     alignItems: 'center',
-    marginBottom: 20,
-    marginHorizontal: 5,
+    marginBottom: 20, // Khoảng cách dọc giữa các item
+    marginHorizontal: 5, // Khoảng cách ngang giữa các item
   },
   iconContainer: {
     width: 56,
     height: 56,
-    borderRadius: 28,
-    backgroundColor: '#f0f0f0',
+    borderRadius: 28, // Làm cho nó tròn
+    backgroundColor: '#f0f0f0', // Màu nền xám nhạt cho icon
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 8, // Khoảng cách từ icon đến tên
+    elevation: 2, // Thêm đổ bóng nhẹ cho Android
+    shadowColor: '#000', // Thêm đổ bóng cho iOS
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
   },
   addButtonIconContainer: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: '#e0e0e0', // Màu nền khác cho nút "Thêm mới"
   },
   iconText: {
-    fontSize: 26,
+    fontSize: 26, // Kích thước icon emoji
   },
   addButtonIconText: {
-    fontSize: 30,
-    color: '#555',
+    fontSize: 30, // Kích thước icon "+"
+    color: '#555', // Màu cho icon "+"
   },
   categoryName: {
     fontSize: 12,
     textAlign: 'center',
-    color: '#333',
-    height: 30,
+    color: '#333', // Màu chữ cho tên danh mục
+    height: 30, // Giới hạn chiều cao để đảm bảo các item có cùng kích thước nếu tên quá dài
+  },
+  emptyListText: {
+    textAlign: 'center',
+    marginTop: 50,
+    fontSize: 16,
+    color: '#888',
   },
 });
 
 export default AddTransactionUI;
+
