@@ -1,9 +1,10 @@
 // app/(tabs)/index.js
-import React, { useState, useEffect } from 'react'; // useEffect có thể cần nếu fetch data
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'; // Hoặc react-native-vector-icons
-import SummarySection from '../../components/SummarySection'
-import MonthYearPickerModal from '../../components/MonthYearPickerModal'
+import { MaterialCommunityIcons } from '@expo/vector-icons'; // Hoặc react-native-vector-icons
+import React, { useEffect, useState } from 'react'; // useEffect có thể cần nếu fetch data
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import MonthYearPickerModal from '../../components/MonthYearPickerModal';
+import SummarySection from '../../components/SummarySection';
+import '../../firebaseConfig';
 
 const HomeScreen = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
