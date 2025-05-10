@@ -1,54 +1,59 @@
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { getDatabase, onValue, ref } from 'firebase/database';
+import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import ParallaxScrollView from './ParallaxScrollView'; // Giả sử đây là đường dẫn hợp lệ
-import { ThemedText } from './ThemedText'; // Giả sử component này không tự đổi theme
-import { ThemedView } from './ThemedView'; // Giả sử component này không tự đổi theme
+import { app } from '../firebaseConfig';
+import ParallaxScrollView from './ParallaxScrollView';
+import { ThemedText } from './ThemedText';
+import { ThemedView } from './ThemedView';
 
 import {
   AboutItem,
   categoryItem,
-  DarkModeSectionUI,
   policyItem,
-  ProfileItem, // Cập nhật import
-  settingsItem,
+  ProfileItem,
+  SettingsItem,
   termsItem,
   themeItem,
 } from '../components/profileData';
 
+// Trong ProfileComponents.js hoặc file chứa IconSymbol
 const IconSymbol = ({ name, style, isSelected }) => {
   const icons = {
-    user: '👤',
-    cog: '⚙️',
-    chevron_right: '>',
-    shield_check: '🛡️',
-    question_circle: '❓',
-    palette: '🎨',
-    list_alt: '🗂️',
-    file_contract: '📜',
-    info_circle: 'ℹ️',
-    moon: '🌙',
-    sun: '☀️',
-    radio_on: '◉',
-    radio_off: '○',
+    user: '👤', // Hồ sơ người dùng
+    cog: '⚙️', // Cài đặt (nếu bạn dùng)
+    chevron_right: '❯', // Mũi tên phải (sử dụng ký tự dày hơn một chút)
+    // chevron_left: '<', // Nếu cần mũi tên trái
+    expand_more: '⌄', // Mũi tên xuống (thay cho expand_more)
+    expand_less: '⌃', // Mũi tên lên (thay cho expand_less)
+    shield_check: '🛡️', // Bảo mật
+    question_circle: '❓', // Trợ giúp
+    palette: '🎨', // Giao diện / Theme
+    list_alt: '🗂️', // Danh mục
+    file_contract: '📜', // Điều khoản
+    info_circle: 'ℹ️', // Giới thiệu
+    bell: '🔔', // Thông báo
+    language: '🌐', // Ngôn ngữ
+    logout: '↪️', // Đăng xuất (icon gốc của bạn)
+    login: '🔑', // Đăng nhập (thêm mới)
+    person_add: '➕👤', // Đăng ký (thêm mới, hoặc bạn có thể chọn '✏️' '📝')
   };
-  let iconToRender = icons[name] || '?';
-  if (name === 'moon' && isSelected === 'Sáng') {
-    iconToRender = icons['sun'];
-  }
+  let iconToRender = icons[name] || '?'; // Giữ lại dấu '?' cho icon không xác định
   return <Text style={[styles.iconStyle, style]}>{iconToRender}</Text>;
 };
-
 export default function ProfileComponents() {
-  const loginInfo = {
+  const defaultLoginInfo = {
     title: 'Tài khoản của tôi',
     subtitle: 'Quản lý thông tin cá nhân và cài đặt',
   };
 
+  const [loginInfo, setLoginInfo] = useState(defaultLoginInfo);
+
   const mainOptions = [
-    { type: 'profileSection', uniqueKey: 'profileSectionKey' }, // Sử dụng type để render ProfileItem
+    { type: 'profileSection', uniqueKey: 'profileSectionKey' },
     themeItem,
     categoryItem,
-    { type: 'darkModeSection', uniqueKey: 'darkModeSectionKey' },
-    settingsItem,
+    { type: 'settingsSection', uniqueKey: 'settingsSectionKey' },
   ];
 
   const additionalInfoItemsData = [
@@ -57,9 +62,54 @@ export default function ProfileComponents() {
     policyItem,
   ];
 
+  const auth = getAuth(app);
+  const database = getDatabase(app);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const userRef = ref(database, `users/${user.uid}`);
+        onValue(userRef, (snapshot) => {
+          const data = snapshot.val();
+          if (data && data.name) {
+            setLoginInfo({
+              title: data.name, // Hiển thị tên người dùng (e.g., "Ngo Minh Tri")
+              subtitle: defaultLoginInfo.subtitle,
+            });
+          } else {
+            setLoginInfo(defaultLoginInfo);
+          }
+        });
+      } else {
+        setLoginInfo(defaultLoginInfo);
+      }
+    });
+    return () => unsubscribe();
+  }, [auth, database]);
+
   const handleOptionPress = (screen) => {
     if (screen) {
       console.log(`Navigating to ${screen}`);
+    }
+  };
+
+  const handleSettingsOptionPress = (optionTitle) => {
+    console.log(`Selected settings option: ${optionTitle}`);
+    switch (optionTitle) {
+      case 'Thông báo':
+        console.log('Chuyển đến màn hình cài đặt thông báo');
+        break;
+      case 'Ngôn ngữ':
+        console.log('Chuyển đến màn hình chọn ngôn ngữ');
+        break;
+      case 'Bảo mật':
+        console.log('Chuyển đến màn hình cài đặt bảo mật');
+        break;
+      case 'Đăng xuất':
+        console.log('Thực hiện đăng xuất');
+        break;
+      default:
+        break;
     }
   };
 
@@ -85,7 +135,6 @@ export default function ProfileComponents() {
     >
       <ThemedView style={[styles.sectionContainer, styles.lightContainer]}>
         {mainOptions.map((option, index) => {
-          // Xử lý mục đặc biệt cho ProfileItem
           if (option.type === 'profileSection') {
             return (
               <ProfileItem
@@ -97,13 +146,14 @@ export default function ProfileComponents() {
             );
           }
 
-          if (option.type === 'darkModeSection') {
+          if (option.type === 'settingsSection') {
             return (
-              <DarkModeSectionUI
+              <SettingsItem
                 key={option.uniqueKey}
                 itemStyles={styles}
                 IconSymbolComponent={IconSymbol}
                 ThemedTextComponent={ThemedText}
+                onPressOption={handleSettingsOptionPress}
               />
             );
           }
@@ -159,7 +209,6 @@ export default function ProfileComponents() {
   );
 }
 
-// StyleSheet không thay đổi
 const styles = StyleSheet.create({
   lightHeader: { backgroundColor: '#E3F2FD' },
   iconBackgroundLight: { backgroundColor: '#BBDEFB' },
@@ -197,7 +246,6 @@ const styles = StyleSheet.create({
   optionArrow: { fontSize: 20 },
   arrowExpanded: { transform: [{ rotate: '90deg' }] },
   expandedArea: { paddingHorizontal: 20, paddingBottom: 15, paddingTop: 5 },
-  darkModeDescription: { fontSize: 14, marginBottom: 15, lineHeight: 20 },
   themeChoiceButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
   radioIcon: { fontSize: 20, marginRight: 12 },
   themeChoiceText: { fontSize: 16 },

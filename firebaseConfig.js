@@ -1,6 +1,5 @@
 // firebaseConfig.js
 
-import { getAnalytics } from "firebase/analytics";
 import { getApp, getApps, initializeApp } from 'firebase/app'; // Thêm getApp, getApps để khởi tạo an toàn
 import { getDatabase } from "firebase/database"; // <--- THÊM DÒNG NÀY
 
@@ -25,9 +24,8 @@ if (!getApps().length) {
   app = getApp();
 }
 
-const analytics = getAnalytics(app);
 const database = getDatabase(app); // <--- KHỞI TẠO DATABASE SERVICE
 
 // Export những gì bạn cần
-export { analytics, app, database }; // <--- EXPORT 'database'
+export { app, database }; // <--- EXPORT 'database'
 
