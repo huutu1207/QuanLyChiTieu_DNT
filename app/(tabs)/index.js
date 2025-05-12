@@ -1,5 +1,6 @@
 // app/(tabs)/index.js
-// Removed import for MaterialCommunityIcons as it's no longer used here
+
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import MonthYearPickerModal from '../../components/MonthYearPickerModal';
@@ -12,6 +13,7 @@ import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { format } from 'date-fns'; // Import date-fns để định dạng ngày
 import { vi } from 'date-fns/locale'; // Import locale tiếng Việt
 import { Ionicons } from '@expo/vector-icons'; // Import Ionicons
+
 
 const HomeScreen = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -132,6 +134,7 @@ const HomeScreen = () => {
     // Tính toán tổng chi tiêu và thu nhập từ dữ liệu đã lọc (filtered)
     let chiTieu = 0;
     let thuNhap = 0;
+
     // console.log("Starting total calculation loop..."); // Bỏ bớt log này
     filtered.forEach(trans => {
       // console.log(`Processing transaction ID: ${trans.id}, Type: ${trans.transactionType}, Amount: ${trans.amount}, Typeof Amount: ${typeof trans.amount}`); // Bỏ bớt log này
@@ -143,13 +146,14 @@ const HomeScreen = () => {
       } else {
         // console.warn('Dữ liệu giao dịch có transactionType hoặc amount không hợp lệ hoặc thiếu:', trans); // Bỏ bớt log này
         // console.warn('Transaction causing warning:', trans); // Bỏ bớt log này
+
       }
     });
     console.log("Total calculation loop finished.");
     console.log("Calculated totals - Chi tieu:", chiTieu, "Thu nhap:", thuNhap);
     setTotalChiTieu(chiTieu);
     setTotalThuNhap(thuNhap);
-    // console.log("State update calls for totals finished."); // Bỏ bớt log này
+
 
   }, [allUserTransactions, selectedYear, selectedMonth]); // Dependencies là allUserTransactions, selectedYear, selectedMonth
 
@@ -230,6 +234,7 @@ const HomeScreen = () => {
           <View style={styles.noDataContainer}>
             {/* Sử dụng Ionicons thay cho MaterialCommunityIcons */}
             <Ionicons name="document-outline" size={80} color="#ccc" />
+
             <Text style={styles.noDataText}>Chưa có dữ liệu cho tháng này</Text>
           </View>
         ) : (
@@ -261,6 +266,7 @@ const HomeScreen = () => {
                           color="#555" // Màu sắc icon
                           style={styles.categoryIcon}
                       />
+
                       <Text style={styles.categoryName}>{transaction.categoryName}</Text>
                     </View>
                     <View style={styles.transactionRight}>

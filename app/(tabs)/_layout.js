@@ -1,8 +1,8 @@
 // app/(tabs)/_layout.js
-import React from 'react';
+import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons'; // Import FontAwesome5 cho nút cộng
 import { Tabs, useRouter } from 'expo-router'; // Hoặc Stack từ expo-router nếu đây là stack cha
-import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons'; // Import FontAwesome5 cho nút cộng
-import { View, TouchableOpacity, StyleSheet , Platform} from 'react-native';
+import React from 'react';
+import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 // Custom Add Button
 const CustomAddButton = ({ children, onPress }) => (
@@ -88,7 +88,7 @@ export default function TabLayout() {
           tabBarButton: (props) => {
             return (
               <CustomAddButton 
-                {...props}
+                // {...props}
                 
                 onPress={() => {
                   router.push('/add-transaction');

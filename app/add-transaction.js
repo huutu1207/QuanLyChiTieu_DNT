@@ -1,6 +1,6 @@
 // app/add-transaction.js
 import { Stack, useRouter } from 'expo-router';
-// Import các hàm cần thiết từ Firebase Database và Auth
+
 import { onValue, push, ref, serverTimestamp, set } from 'firebase/database';
 import { useEffect, useState } from 'react';
 import {
@@ -42,8 +42,9 @@ export default function AddTransactionScreenRoute() {
  const [loadingExpenses, setLoadingExpenses] = useState(true);
  const [errorExpenses, setErrorExpenses] = useState(null);
 
- // Khởi tạo Auth
+
  const auth = getAuth();
+
 
 
  useEffect(() => {
@@ -74,6 +75,7 @@ export default function AddTransactionScreenRoute() {
   return () => unsubscribeExpenses();
  }, []);
 
+
  const handleCategorySelect = (categoryDetails) => {
   setSelectedCategoryDetails(categoryDetails);
   setShowInputArea(true);
@@ -100,7 +102,8 @@ export default function AddTransactionScreenRoute() {
       // Có thể chuyển hướng người dùng đến màn hình đăng nhập ở đây
       return;
     }
-    const userId = user.uid; // Lấy UID của người dùng
+  const userId = user.uid; // Lấy UID của người dùng
+
 
   const transactionData = {
    categoryId: selectedCategoryDetails.id,
@@ -130,6 +133,7 @@ export default function AddTransactionScreenRoute() {
   } catch (error) {
    console.error("Lỗi khi lưu giao dịch lên Firebase: ", error);
    Alert.alert('Lỗi', `Không thể lưu giao dịch: ${error.message}`);
+
   }
  };
 
@@ -161,6 +165,7 @@ export default function AddTransactionScreenRoute() {
    </SafeAreaView>
   );
  }
+
 
  if (errorExpenses && expenseCats.length === 0) {
   return (
@@ -236,6 +241,7 @@ export default function AddTransactionScreenRoute() {
                 onCancelTransaction={handleCancelTransactionInput}
               />
             )}
+
           </View>
         </TouchableWithoutFeedback>
       </View>
@@ -288,3 +294,4 @@ const styles = StyleSheet.create({
   paddingTop: 5,
  },
 });
+
