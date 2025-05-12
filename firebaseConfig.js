@@ -1,8 +1,8 @@
 // firebaseConfig.js
 
 import { getApp, getApps, initializeApp } from 'firebase/app'; // Thêm getApp, getApps để khởi tạo an toàn
+import { getAuth } from 'firebase/auth';
 import { getDatabase } from "firebase/database"; // <--- THÊM DÒNG NÀY
-
 // Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyA7MjFYvvRpMCWE2Cv7cyMUxP6OyqMenRI",
@@ -24,8 +24,9 @@ if (!getApps().length) {
   app = getApp();
 }
 
+const auth = getAuth(app);
 const database = getDatabase(app); // <--- KHỞI TẠO DATABASE SERVICE
 
 // Export những gì bạn cần
-export { app, database }; // <--- EXPORT 'database'
+export { app, auth, database }; // <--- EXPORT 'database'
 
