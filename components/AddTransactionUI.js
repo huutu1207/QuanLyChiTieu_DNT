@@ -1,17 +1,18 @@
 // components/AddTransactionUI.js
+import { Ionicons } from '@expo/vector-icons'; // Import Ionicons
 import { useState } from 'react';
 import {
   Dimensions,
   FlatList,
   ScrollView,
   StyleSheet,
-  Text,
+  Text, // Vẫn cần Text cho tên danh mục và các text khác
   TouchableOpacity,
   View,
 } from 'react-native';
 
-// Hằng số cho nút "Thêm mới"
-const ADD_NEW_CATEGORY_ITEM = { id: 'add', name: 'Thêm mới', icon: '+' };
+// Hằng số cho nút "Thêm mới" (đảm bảo icon khớp với tên icon trong Ionicons)
+const ADD_NEW_CATEGORY_ITEM = { id: 'add', name: 'Thêm mới', icon: 'add-circle-outline' }; // Sử dụng tên icon Ionicons
 
 const NUM_COLUMNS = 4;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -65,7 +66,12 @@ const AddTransactionUI = ({
             styles.iconContainer,
             isAddButton && styles.addButtonIconContainer
         ]}>
-          <Text style={[styles.iconText, isAddButton && styles.addButtonIconText]}>{item.icon}</Text>
+          {/* Sử dụng Ionicons component để hiển thị icon */}
+          <Ionicons
+            name={item.icon} // Tên icon từ dữ liệu danh mục
+            size={isAddButton ? 30 : 26} // Kích thước icon (lớn hơn cho nút thêm)
+            color={isAddButton ? '#555' : '#333'} // Màu sắc icon (màu khác cho nút thêm)
+          />
         </View>
         <Text style={styles.categoryName} numberOfLines={2}>{item.name}</Text>
       </TouchableOpacity>
@@ -78,16 +84,15 @@ const AddTransactionUI = ({
     const dataToRender = [...expenseCategories, ADD_NEW_CATEGORY_ITEM];
     if (expenseCategories.length === 0) {
         // Nếu không có danh mục nào, chỉ hiển thị nút thêm mới
-        // Hoặc bạn có thể hiển thị một thông báo "Chưa có danh mục nào"
         return (
-            <FlatList
-                data={[ADD_NEW_CATEGORY_ITEM]}
-                renderItem={renderCategoryItem}
-                keyExtractor={(item) => `expense-${item.id}`}
-                numColumns={NUM_COLUMNS}
-                contentContainerStyle={styles.categoryList}
-                ListEmptyComponent={<Text style={styles.emptyListText}>Chưa có danh mục chi tiêu. Hãy thêm mới!</Text>}
-            />
+          <FlatList
+              data={[ADD_NEW_CATEGORY_ITEM]}
+              renderItem={renderCategoryItem}
+              keyExtractor={(item) => `expense-${item.id}`}
+              numColumns={NUM_COLUMNS}
+              contentContainerStyle={styles.categoryList}
+              ListEmptyComponent={<Text style={styles.emptyListText}>Chưa có danh mục chi tiêu. Hãy thêm mới!</Text>}
+          />
         );
     }
     return (
@@ -105,7 +110,7 @@ const AddTransactionUI = ({
   const renderIncomeContent = () => {
     // Thêm nút "Thêm mới" vào cuối danh sách danh mục thu nhập
     const dataToRender = [...incomeCategories, ADD_NEW_CATEGORY_ITEM];
-     if (incomeCategories.length === 0) {
+      if (incomeCategories.length === 0) {
         return (
             <FlatList
                 data={[ADD_NEW_CATEGORY_ITEM]}
@@ -137,7 +142,6 @@ const AddTransactionUI = ({
       case 'Thu nhập':
         return renderIncomeContent();
       default:
-        // Có thể render một placeholder hoặc một ScrollView đơn giản nếu không có tab nào khớp
         return (
             <ScrollView style={styles.scrollViewForSimpleContent}>
                 <View style={styles.contentContainer}>
@@ -227,13 +231,14 @@ const styles = StyleSheet.create({
   addButtonIconContainer: {
     backgroundColor: '#e0e0e0', // Màu nền khác cho nút "Thêm mới"
   },
-  iconText: {
-    fontSize: 26, // Kích thước icon emoji
-  },
-  addButtonIconText: {
-    fontSize: 30, // Kích thước icon "+"
-    color: '#555', // Màu cho icon "+"
-  },
+  // Đã loại bỏ styles iconText và addButtonIconText vì không dùng Text cho icon nữa
+  // iconText: {
+  //   fontSize: 26,
+  // },
+  // addButtonIconText: {
+  //   fontSize: 30,
+  //   color: '#555',
+  // },
   categoryName: {
     fontSize: 12,
     textAlign: 'center',
@@ -249,4 +254,3 @@ const styles = StyleSheet.create({
 });
 
 export default AddTransactionUI;
-

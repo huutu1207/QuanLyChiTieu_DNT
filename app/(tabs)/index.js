@@ -1,4 +1,5 @@
 // app/(tabs)/index.js
+
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -8,9 +9,11 @@ import SummarySection from '../../components/SummarySection';
 import { off, onValue, ref } from 'firebase/database';
 import { database } from '../../firebaseConfig';
 // Import onAuthStateChanged từ firebase/auth
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { format } from 'date-fns'; // Import date-fns để định dạng ngày
 import { vi } from 'date-fns/locale'; // Import locale tiếng Việt
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { Ionicons } from '@expo/vector-icons'; // Import Ionicons
+
 
 const HomeScreen = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -131,28 +134,26 @@ const HomeScreen = () => {
     // Tính toán tổng chi tiêu và thu nhập từ dữ liệu đã lọc (filtered)
     let chiTieu = 0;
     let thuNhap = 0;
-    console.log("Starting total calculation loop...");
+
+    // console.log("Starting total calculation loop..."); // Bỏ bớt log này
     filtered.forEach(trans => {
-      // console.log(`Processing transaction ID: ${trans.id}, Type: ${trans.transactionType}, Amount: ${trans.amount}, Typeof Amount: ${typeof trans.amount}`); // Có thể bỏ bớt log này nếu không cần debug sâu
+      // console.log(`Processing transaction ID: ${trans.id}, Type: ${trans.transactionType}, Amount: ${trans.amount}, Typeof Amount: ${typeof trans.amount}`); // Bỏ bớt log này
 
       if (trans.transactionType === 'Chi tiêu' && typeof trans.amount === 'number') {
-        // console.log(`Condition met for Chi tiêu: Adding ${trans.amount} to chiTieu (current: ${chiTieu})`); // Có thể bỏ bớt log này
         chiTieu += trans.amount;
-        // console.log(`chiTieu after addition: ${chiTieu}`); // Có thể bỏ bớt log này
       } else if (trans.transactionType === 'Thu nhập' && typeof trans.amount === 'number') {
-        // console.log(`Condition met for Thu nhập: Adding ${trans.amount} to thuNhap (current: ${thuNhap})`); // Có thể bỏ bớt log này
         thuNhap += trans.amount;
-        // console.log(`thuNhap after addition: ${thuNhap}`); // Có thể bỏ bớt log này
       } else {
-        console.warn('Dữ liệu giao dịch có transactionType hoặc amount không hợp lệ hoặc thiếu:', trans);
-        console.warn('Transaction causing warning:', trans);
+        // console.warn('Dữ liệu giao dịch có transactionType hoặc amount không hợp lệ hoặc thiếu:', trans); // Bỏ bớt log này
+        // console.warn('Transaction causing warning:', trans); // Bỏ bớt log này
+
       }
     });
     console.log("Total calculation loop finished.");
     console.log("Calculated totals - Chi tieu:", chiTieu, "Thu nhap:", thuNhap);
     setTotalChiTieu(chiTieu);
     setTotalThuNhap(thuNhap);
-    console.log("State update calls for totals finished.");
+
 
   }, [allUserTransactions, selectedYear, selectedMonth]); // Dependencies là allUserTransactions, selectedYear, selectedMonth
 
@@ -231,7 +232,9 @@ const HomeScreen = () => {
       <ScrollView style={styles.mainContent}>
         {sortedDates.length === 0 ? ( // Kiểm tra nếu không có ngày nào có giao dịch trong tháng
           <View style={styles.noDataContainer}>
-            <MaterialCommunityIcons name="file-document-outline" size={80} color="#ccc" />
+            {/* Sử dụng Ionicons thay cho MaterialCommunityIcons */}
+            <Ionicons name="document-outline" size={80} color="#ccc" />
+
             <Text style={styles.noDataText}>Chưa có dữ liệu cho tháng này</Text>
           </View>
         ) : (
@@ -256,14 +259,14 @@ const HomeScreen = () => {
                 {transactionsForDay.map(transaction => (
                   <View key={transaction.id} style={styles.transactionItem}>
                     <View style={styles.transactionLeft}>
-                      {/* Icon danh mục - cần đảm bảo icon được hiển thị đúng */}
-                      {/* Nếu categoryIcon là emoji, hiển thị trực tiếp */}
-                      {transaction.categoryIcon && typeof transaction.categoryIcon === 'string' && transaction.categoryIcon.length < 5 ? ( // Kiểm tra đơn giản cho emoji
-                           <Text style={styles.categoryIcon}>{transaction.categoryIcon}</Text>
-                       ) : (
-                           // Nếu không phải emoji đơn giản, có thể cần xử lý icon phức tạp hơn hoặc dùng placeholder
-                           <MaterialCommunityIcons name="circle-outline" size={20} color="#555" style={styles.categoryIcon} /> // Placeholder icon
-                       )}
+                      {/* Icon danh mục - Sử dụng Ionicons */}
+                      <Ionicons
+                          name={transaction.categoryIcon || 'cash-outline'} // Sử dụng tên icon từ dữ liệu, hoặc icon mặc định nếu không có
+                          size={20} // Kích thước icon
+                          color="#555" // Màu sắc icon
+                          style={styles.categoryIcon}
+                      />
+
                       <Text style={styles.categoryName}>{transaction.categoryName}</Text>
                     </View>
                     <View style={styles.transactionRight}>
