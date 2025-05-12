@@ -1,96 +1,286 @@
 // app/(tabs)/index.js
-import { MaterialCommunityIcons } from '@expo/vector-icons'; // Hoặc react-native-vector-icons
-import React, { useEffect, useState } from 'react'; // useEffect có thể cần nếu fetch data
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+// Removed import for MaterialCommunityIcons as it's no longer used here
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import MonthYearPickerModal from '../../components/MonthYearPickerModal';
 import SummarySection from '../../components/SummarySection';
-import '../../firebaseConfig';
+// Import các hàm cần thiết từ Firebase Database và Auth
+import { off, onValue, ref } from 'firebase/database';
+import { database } from '../../firebaseConfig';
+// Import onAuthStateChanged từ firebase/auth
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { format } from 'date-fns'; // Import date-fns để định dạng ngày
+import { vi } from 'date-fns/locale'; // Import locale tiếng Việt
+import { Ionicons } from '@expo/vector-icons'; // Import Ionicons
 
 const HomeScreen = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); // Tháng trong JS là 0-11, nên cộng 1
   const [isPickerVisible, setIsPickerVisible] = useState(false);
 
-  // Dữ liệu giao dịch giả định (sẽ được fetch từ API hoặc state quản lý)
-  const [transactions, setTransactions] = useState([]);
+  // State để lưu trữ tất cả giao dịch của người dùng (trước khi lọc theo tháng/năm)
+  const [allUserTransactions, setAllUserTransactions] = useState([]);
+  // State để lưu trữ giao dịch đã lọc VÀ nhóm theo ngày
+  const [groupedTransactions, setGroupedTransactions] = useState({}); // Sử dụng object để nhóm { 'YYYY-MM-DD': [trans1, trans2], ... }
+
   const [totalChiTieu, setTotalChiTieu] = useState(0);
   const [totalThuNhap, setTotalThuNhap] = useState(0);
 
-  // Ví dụ: useEffect để tính toán lại khi transactions thay đổi
+  const [loadingTransactions, setLoadingTransactions] = useState(true); // State loading
+  const [errorTransactions, setErrorTransactions] = useState(null); // State error
+  const [authLoading, setAuthLoading] = useState(true); // State loading xác thực
+
+  // Khởi tạo Auth
+  const auth = getAuth();
+
+  // Effect để lắng nghe trạng thái xác thực và tải giao dịch
   useEffect(() => {
-    let chiTieu = 0;
-    let thuNhap = 0;
-    transactions.forEach(trans => {
-      if (trans.type === 'expense') {
-        chiTieu += trans.amount;
-      } else if (trans.type === 'income') {
-        thuNhap += trans.amount;
+    console.log("Auth state effect running...");
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      console.log("onAuthStateChanged fired. User:", user ? user.uid : null);
+      setAuthLoading(false);
+
+      if (user) {
+        const userId = user.uid;
+        const transactionsRef = ref(database, `users/${userId}/transactions`);
+
+        setLoadingTransactions(true);
+        setErrorTransactions(null);
+
+        console.log(`Starting to listen to transactions for user: ${userId}`);
+
+        const unsubscribeData = onValue(transactionsRef, (snapshot) => {
+          console.log("onValue fired. Snapshot exists:", snapshot.exists());
+          const data = snapshot.val();
+          if (data) {
+            console.log("Raw transaction data from Firebase:", data);
+            const transactionsArray = Object.keys(data).map(key => ({
+              id: key,
+              ...data[key]
+            }));
+            // Sắp xếp giao dịch theo ngày giảm dần để hiển thị cái mới nhất trước
+            transactionsArray.sort((a, b) => new Date(b.date) - new Date(a.date));
+            console.log("Converted and sorted transactions array:", transactionsArray);
+            setAllUserTransactions(transactionsArray);
+            setErrorTransactions(null);
+          } else {
+            console.log("No transaction data found for user.");
+            setAllUserTransactions([]);
+          }
+          setLoadingTransactions(false);
+        }, (error) => {
+          console.error("Lỗi khi lấy giao dịch từ Firebase: ", error);
+          setErrorTransactions("Không thể tải giao dịch.");
+          setLoadingTransactions(false);
+        });
+
+        return () => {
+          console.log(`Unsubscribing from transactions for user: ${userId}`);
+          off(transactionsRef, 'value', unsubscribeData);
+        };
+
+      } else {
+        console.log("Người dùng chưa đăng nhập. Resetting transaction data.");
+        setAllUserTransactions([]);
+        setGroupedTransactions({}); // Reset groupedTransactions
+        setLoadingTransactions(false);
+        setErrorTransactions("Bạn cần đăng nhập để xem giao dịch.");
       }
     });
+
+    return () => {
+      console.log("Unsubscribing from auth state changes.");
+      unsubscribeAuth();
+    };
+  }, [auth]);
+
+  // Effect để lọc, nhóm giao dịch và tính toán tổng khi allUserTransactions hoặc tháng/năm thay đổi
+  useEffect(() => {
+    console.log("Filtering, grouping, and calculation effect running. Dependencies changed.");
+    console.log("Current allUserTransactions:", allUserTransactions.length, "items");
+    console.log("Selected Year:", selectedYear, "Selected Month:", selectedMonth);
+
+    const filtered = allUserTransactions.filter(trans => {
+      if (!trans.date || typeof trans.date !== 'string') {
+        console.warn('Dữ liệu giao dịch có trường date không hợp lệ:', trans);
+        return false;
+      }
+      const transDate = new Date(trans.date);
+      if (isNaN(transDate.getTime())) {
+        console.warn('Không thể parse date string:', trans.date, 'từ giao dịch:', trans);
+        return false;
+      }
+      // Lọc theo tháng và năm đã chọn
+      return transDate.getFullYear() === selectedYear && (transDate.getMonth() + 1) === selectedMonth;
+    });
+
+    console.log("Filtered transactions for selected month/year:", filtered.length, "items.", filtered);
+
+    // Nhóm giao dịch đã lọc theo ngày
+    const grouped = filtered.reduce((acc, trans) => {
+      const dateKey = format(new Date(trans.date), 'yyyy-MM-dd'); // Sử dụng format để lấy key dạng 'YYYY-MM-DD'
+      if (!acc[dateKey]) {
+        acc[dateKey] = [];
+      }
+      acc[dateKey].push(trans);
+      return acc;
+    }, {});
+
+    console.log("Grouped transactions:", grouped);
+    setGroupedTransactions(grouped);
+
+    // Tính toán tổng chi tiêu và thu nhập từ dữ liệu đã lọc (filtered)
+    let chiTieu = 0;
+    let thuNhap = 0;
+    // console.log("Starting total calculation loop..."); // Bỏ bớt log này
+    filtered.forEach(trans => {
+      // console.log(`Processing transaction ID: ${trans.id}, Type: ${trans.transactionType}, Amount: ${trans.amount}, Typeof Amount: ${typeof trans.amount}`); // Bỏ bớt log này
+
+      if (trans.transactionType === 'Chi tiêu' && typeof trans.amount === 'number') {
+        chiTieu += trans.amount;
+      } else if (trans.transactionType === 'Thu nhập' && typeof trans.amount === 'number') {
+        thuNhap += trans.amount;
+      } else {
+        // console.warn('Dữ liệu giao dịch có transactionType hoặc amount không hợp lệ hoặc thiếu:', trans); // Bỏ bớt log này
+        // console.warn('Transaction causing warning:', trans); // Bỏ bớt log này
+      }
+    });
+    console.log("Total calculation loop finished.");
+    console.log("Calculated totals - Chi tieu:", chiTieu, "Thu nhap:", thuNhap);
     setTotalChiTieu(chiTieu);
     setTotalThuNhap(thuNhap);
-  }, [transactions]);
+    // console.log("State update calls for totals finished."); // Bỏ bớt log này
+
+  }, [allUserTransactions, selectedYear, selectedMonth]); // Dependencies là allUserTransactions, selectedYear, selectedMonth
 
 
   const soDu = totalThuNhap - totalChiTieu;
+  console.log("Calculated So Du:", soDu);
+
 
   const openMonthYearPicker = () => {
     setIsPickerVisible(true);
   };
 
   const handleMonthYearSelect = (year, month) => {
+    console.log(`Month/Year selected: ${month}/${year}`);
     setSelectedYear(year);
     setSelectedMonth(month);
     setIsPickerVisible(false);
   };
 
-  const fetchTransactionsForCurrentMonth = () => {
-      
-      if (selectedMonth === 5 && selectedYear === 2025) {
-          setTransactions([{id: '1', type: 'expense', amount: 75000, description: 'Mua sắm'}]); // Hoặc dữ liệu mẫu
-      } else {
-          setTransactions([]);
-      }
+  // Hàm tính tổng chi tiêu cho một ngày cụ thể
+  const calculateDailyTotalExpense = (transactions) => {
+      let dailyTotal = 0;
+      transactions.forEach(trans => {
+          if (trans.transactionType === 'Chi tiêu' && typeof trans.amount === 'number') {
+              dailyTotal += trans.amount;
+          }
+      });
+      return dailyTotal;
+  };
+
+
+  // Hiển thị trạng thái loading hoặc lỗi
+  if (authLoading) {
+    return (
+      <View style={styles.centeredMessage}>
+        <ActivityIndicator size="large" color="#333" />
+        <Text style={styles.loadingText}>Đang kiểm tra đăng nhập...</Text>
+      </View>
+    );
   }
 
-  useEffect(() => {
-      fetchTransactionsForCurrentMonth();
-  }, [selectedYear, selectedMonth]);
+  if (errorTransactions) {
+    return (
+      <View style={styles.centeredMessage}>
+        <Text style={styles.errorText}>{errorTransactions}</Text>
+      </View>
+    );
+  }
+
+  if (loadingTransactions) {
+    return (
+      <View style={styles.centeredMessage}>
+        <ActivityIndicator size="large" color="#333" />
+        <Text style={styles.loadingText}>Đang tải giao dịch...</Text>
+      </View>
+    );
+  }
+
+  // Lấy danh sách các ngày (keys của object groupedTransactions) và sắp xếp giảm dần
+  const sortedDates = Object.keys(groupedTransactions).sort((a, b) => new Date(b) - new Date(a));
 
 
+  // Render UI chính
   return (
     <View style={styles.container}>
-      {/* Gọi hàm từ components */}
       <SummarySection
         selectedYear={selectedYear}
         selectedMonth={selectedMonth}
         totalChiTieu={totalChiTieu}
         totalThuNhap={totalThuNhap}
         soDu={soDu}
-        onOpenPicker={openMonthYearPicker} 
+        onOpenPicker={openMonthYearPicker}
       />
 
       {/* Main Content Area */}
       <ScrollView style={styles.mainContent}>
-        {transactions.length === 0 ? (
+        {sortedDates.length === 0 ? ( // Kiểm tra nếu không có ngày nào có giao dịch trong tháng
           <View style={styles.noDataContainer}>
-            <MaterialCommunityIcons name="file-document-outline" size={80} color="#ccc" />
-            <Text style={styles.noDataText}>Chưa có dữ liệu</Text>
+            {/* Sử dụng Ionicons thay cho MaterialCommunityIcons */}
+            <Ionicons name="document-outline" size={80} color="#ccc" />
+            <Text style={styles.noDataText}>Chưa có dữ liệu cho tháng này</Text>
           </View>
         ) : (
-          transactions.map(transaction => ( // Sử dụng map để render danh sách
-            <View key={transaction.id} style={styles.transactionItem}>
-              <Text>{transaction.description}</Text>
-              <Text style={{color: transaction.type === 'expense' ? 'red' : 'green'}}>
-                {transaction.type === 'expense' ? '-' : '+'}
-                {transaction.amount.toLocaleString()} đ
-              </Text>
-            </View>
-          ))
+          // Duyệt qua từng ngày đã sắp xếp
+          sortedDates.map(dateKey => {
+            const transactionsForDay = groupedTransactions[dateKey];
+            const date = new Date(dateKey); // Chuyển dateKey về Date object
+            const formattedDate = format(date, 'dd MMMM EEEE', { locale: vi }); // Định dạng ngày (ví dụ: 12 tháng 5 Thứ hai)
+             const dailyTotalExpense = calculateDailyTotalExpense(transactionsForDay); // Tính tổng chi tiêu ngày
+
+            return (
+              <View key={dateKey}>
+                {/* Header ngày */}
+                <View style={styles.dailySummaryHeader}>
+                  <Text style={styles.dailyDateText}>{formattedDate}</Text>
+                   {/* Hiển thị tổng chi tiêu ngày nếu có */}
+                   {dailyTotalExpense > 0 && (
+                       <Text style={styles.dailyTotalExpenseText}>Chi tiêu: {dailyTotalExpense.toLocaleString()} đ</Text>
+                   )}
+                </View>
+                {/* Danh sách giao dịch trong ngày */}
+                {transactionsForDay.map(transaction => (
+                  <View key={transaction.id} style={styles.transactionItem}>
+                    <View style={styles.transactionLeft}>
+                      {/* Icon danh mục - Sử dụng Ionicons */}
+                      <Ionicons
+                          name={transaction.categoryIcon || 'cash-outline'} // Sử dụng tên icon từ dữ liệu, hoặc icon mặc định nếu không có
+                          size={20} // Kích thước icon
+                          color="#555" // Màu sắc icon
+                          style={styles.categoryIcon}
+                      />
+                      <Text style={styles.categoryName}>{transaction.categoryName}</Text>
+                    </View>
+                    <View style={styles.transactionRight}>
+                      <Text style={[
+                        styles.transactionAmount,
+                        { color: transaction.transactionType === 'Chi tiêu' ? 'red' : 'green' }
+                      ]}>
+                        {transaction.transactionType === 'Chi tiêu' ? '-' : '+'}
+                        {transaction.amount != null ? transaction.amount.toLocaleString() : '0'} đ {/* Thêm lại "đ" */}
+                      </Text>
+                      {transaction.note ? <Text style={styles.transactionNote}>{transaction.note}</Text> : null}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            );
+          })
         )}
       </ScrollView>
 
-      
       <MonthYearPickerModal
         visible={isPickerVisible}
         onClose={() => setIsPickerVisible(false)}
@@ -98,7 +288,6 @@ const HomeScreen = () => {
         initialYear={selectedYear}
         initialMonth={selectedMonth}
       />
-  
     </View>
   );
 };
@@ -106,44 +295,110 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f0f0f0',
   },
-  
   mainContent: {
     flex: 1,
-    // padding: 15, // Bỏ padding ở đây nếu các item con đã có margin/padding
+    paddingTop: 10,
   },
-  noDataContainer: {
-    flex: 1, // Để nó chiếm không gian còn lại nếu ScrollView không đủ nội dung
+  centeredMessage: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 50, // Tăng padding
+    padding: 20,
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#555',
+  },
+  errorText: {
+    fontSize: 16,
+    color: 'red',
+    textAlign: 'center',
+  },
+  noDataContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 50,
   },
   noDataText: {
     marginTop: 15,
     fontSize: 17,
     color: '#aaa',
   },
-  transactionItem: { // Style cho mỗi item giao dịch
+  // Style cho header ngày
+  dailySummaryHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: '#e0e0e0', // Nền cho header ngày
+      paddingVertical: 8,
+      paddingHorizontal: 15,
+      marginTop: 10, // Khoảng cách giữa các nhóm ngày
+  },
+  dailyDateText: {
+      fontSize: 15,
+      fontWeight: 'bold',
+      color: '#333',
+  },
+   dailyTotalExpenseText: {
+      fontSize: 15,
+      color: 'red', // Màu đỏ cho tổng chi tiêu ngày
+      fontWeight: 'bold',
+   },
+  // Style cho từng item giao dịch (giữ nguyên hoặc điều chỉnh nhẹ)
+  transactionItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
-    backgroundColor: '#fff', // Nền trắng cho từng item
-    marginHorizontal: 10, // Thêm margin ngang
-    marginTop: 8, // Thêm margin trên
-    borderRadius: 8, // Bo góc item
-    // Shadow cho item (tuỳ chọn)
-    shadowColor: "#000",
-    shadowOffset: {
-        width: 0,
-        height: 1,
-    },
-    shadowOpacity: 0.18,
-    shadowRadius: 1.00,
-    elevation: 1,
+    backgroundColor: '#fff',
+    // Không cần marginHorizontal và marginBottom ở đây nếu đã có margin ở dailySummaryHeader
+    // marginHorizontal: 10,
+    // marginBottom: 8,
+    // borderRadius: 8, // Bo góc có thể làm ở dailySummaryHeader hoặc bỏ đi
+    // shadowColor: "#000",
+    // shadowOffset: { width: 0, height: 1 },
+    // shadowOpacity: 0.18,
+    // shadowRadius: 1.00,
+    // elevation: 1,
+  },
+  transactionLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+      marginRight: 10,
+  },
+  categoryIcon: {
+      fontSize: 20,
+      marginRight: 8,
+      // Có thể thêm style cho nền icon nếu cần
+      // backgroundColor: '#fff',
+      // padding: 5,
+      // borderRadius: 15,
+  },
+  categoryName: {
+      fontSize: 16,
+      // fontWeight: 'bold', // Bỏ bold để giống ảnh mẫu
+      flexShrink: 1,
+  },
+  transactionRight: {
+      alignItems: 'flex-end',
+  },
+  transactionAmount: {
+      fontSize: 16,
+      fontWeight: 'bold',
+  },
+  transactionNote: {
+      fontSize: 13,
+      color: '#777',
+      marginTop: 2,
   }
 });
 

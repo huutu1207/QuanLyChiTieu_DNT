@@ -11,6 +11,9 @@ import {
 } from 'react-native';
 // Bạn có thể cần thư viện này để chọn ngày
 import DateTimePickerModal from "react-native-modal-datetime-picker";
+// Import Ionicons
+import { Ionicons } from '@expo/vector-icons';
+
 
 // Lấy kích thước màn hình để tính toán layout
 const { width } = Dimensions.get('window');
@@ -18,7 +21,7 @@ const KEYPAD_BUTTON_WIDTH = (width - 20 * 2 - 10 * 3) / 4; // (screenWidth - 2*p
 const KEYPAD_BUTTON_HEIGHT = KEYPAD_BUTTON_WIDTH * 0.7; // Giữ tỷ lệ cho nút
 
 const TransactionInputArea = ({
-    selectedCategory, // { name: string, icon: string }
+    selectedCategory, // { name: string, icon: string } - icon giờ sẽ là tên icon Ionicons
     initialAmount = '0',
     initialNote = '',
     onSaveTransaction, // (details: { amount: number, note: string, date: Date }) => void
@@ -39,7 +42,7 @@ const TransactionInputArea = ({
 
 
     const handleKeyPress = (key) => {
-        if (key === '⌫') { // Backspace
+        if (key === '⌫') { // Backspace icon name
             setAmount(prevAmount => prevAmount.slice(0, -1));
         } else if (key === ',') { // Decimal point
             if (!amount.includes(',')) {
@@ -60,7 +63,9 @@ const TransactionInputArea = ({
     const handleSave = () => {
         const numericAmount = parseFloat(amount.replace(',', '.')) || 0; // Thay thế dấu phẩy nếu có
         if (numericAmount <= 0) {
-            alert('Vui lòng nhập số tiền hợp lệ.');
+            // Thay alert() bằng cách hiển thị thông báo trong UI hoặc thư viện khác
+            // alert('Vui lòng nhập số tiền hợp lệ.');
+             console.warn('Invalid amount entered:', numericAmount); // Log cảnh báo thay vì alert
             return;
         }
         if (onSaveTransaction) {
@@ -83,33 +88,64 @@ const TransactionInputArea = ({
 
     const handleConfirmDate = (date) => {
         setCurrentDate(date);
-        if (onDateChange) {
-            onDateChange(date);
-        }
+        // onDateChange prop không được sử dụng trong component này,
+        // logic quản lý ngày được giữ lại ở đây.
+        // if (onDateChange) {
+        //     onDateChange(date);
+        // }
         hideDatePicker();
     };
 
     const formatAmountForDisplay = () => {
         if (amount === '') return '0';
         // Bạn có thể thêm logic định dạng số tiền ở đây (ví dụ: 1000000 -> 1.000.000)
+        // Hiện tại chỉ hiển thị chuỗi nhập vào
         return amount;
     };
 
-
+    // Cập nhật layout bàn phím với tên icon Ionicons
     const keypadLayout = [
-        ['7', '8', '9', '🗓️'],
-        ['4', '5', '6', '+'],
-        ['1', '2', '3', '-'],
-        [',', '0', '⌫', '✓'],
+        ['7', '8', '9', 'calendar-outline'], // Icon lịch
+        ['4', '5', '6', 'add-outline'], // Icon cộng
+        ['1', '2', '3', 'remove-outline'], // Icon trừ
+        [',', '0', 'backspace-outline', 'checkmark-circle-outline'], // Icon backspace và checkmark
     ];
+
+    // Hàm render nội dung nút bàn phím (Text hoặc Ionicons)
+    const renderKeypadButtonContent = (key) => {
+        const iconMap = {
+            'calendar-outline': 'calendar-outline',
+            'add-outline': 'add-outline',
+            'remove-outline': 'remove-outline',
+            'backspace-outline': 'backspace-outline',
+            'checkmark-circle-outline': 'checkmark-circle-outline',
+        };
+
+        const ioniconName = iconMap[key];
+
+        if (ioniconName) {
+            // Nếu là một trong các key hành động có icon
+            return <Ionicons name={ioniconName} size={key === 'checkmark-circle-outline' ? 28 : 24} color={key === 'checkmark-circle-outline' ? '#fff' : '#333'} />;
+        } else {
+            // Nếu là số hoặc dấu phẩy
+            return <Text style={styles.keypadButtonText}>{key}</Text>;
+        }
+    };
+
 
     return (
         <View style={styles.container}>
             {/* Hiển thị thông tin danh mục và số tiền */}
             <View style={styles.displayArea}>
                 <View style={styles.categoryDisplay}>
-                    <Text style={styles.categoryIcon}>{selectedCategory?.icon || '💸'}</Text>
-                    <Text style={styles.categoryName}>{selectedCategory?.name || 'Chi tiêu'}</Text>
+                    {/* Hiển thị icon danh mục bằng Ionicons */}
+                    <Ionicons
+                        name={selectedCategory?.icon || 'cash-outline'} // Sử dụng icon từ selectedCategory, mặc định là cash-outline
+                        size={24}
+                        color="#555" // Màu cho icon danh mục
+                        style={styles.categoryIcon}
+                    />
+                    <Text style={styles.categoryName}>{selectedCategory?.name || 'Danh mục'}</Text>
                 </View>
                 <Text style={styles.amountText} numberOfLines={1} adjustsFontSizeToFit>
                     {formatAmountForDisplay()}
@@ -125,10 +161,12 @@ const TransactionInputArea = ({
                     value={note}
                     onChangeText={setNote}
                     maxLength={100}
+                    // Tắt bàn phím mặc định
+                    showSoftInputOnFocus={false}
                 />
-                {/* Icon camera (chưa có chức năng) */}
+                {/* Icon camera (chưa có chức năng) - Giữ nguyên emoji hoặc thay bằng Ionicons */}
                 <TouchableOpacity style={styles.cameraIconContainer}>
-                    <Text style={styles.cameraIcon}>📷</Text>
+                    <Ionicons name="camera-outline" size={24} color="#555" />
                 </TouchableOpacity>
             </View>
 
@@ -137,10 +175,9 @@ const TransactionInputArea = ({
                 {keypadLayout.map((row, rowIndex) => (
                     <View key={`row-${rowIndex}`} style={styles.keypadRow}>
                         {row.map((key) => {
-                            const isActionKey = ['🗓️', '+', '-', '✓'].includes(key);
-                            const isConfirmKey = key === '✓';
-                            const isBackspaceKey = key === '⌫';
-                            const isDateKey = key === '🗓️';
+                            const isActionKey = ['calendar-outline', 'add-outline', 'remove-outline', 'checkmark-circle-outline'].includes(key);
+                            const isConfirmKey = key === 'checkmark-circle-outline';
+                            const isDateKey = key === 'calendar-outline';
 
                             return (
                                 <TouchableOpacity
@@ -156,22 +193,19 @@ const TransactionInputArea = ({
                                             handleSave();
                                         } else if (isDateKey) {
                                             showDatePicker();
-                                            alert('Chức năng chọn ngày chưa được triển khai hoàn chỉnh.');
-                                        } else if (['+', '-'].includes(key)) {
-                                            alert(`Chức năng phép toán '${key}' chưa được triển khai.`);
+                                            // alert('Chức năng chọn ngày chưa được triển khai hoàn chỉnh.'); // Bỏ alert này
+                                        } else if (['add-outline', 'remove-outline'].includes(key)) {
+                                            // Xử lý phép toán nếu cần, hiện tại chỉ log
+                                            console.log(`Chức năng phép toán '${key}' chưa được triển khai.`);
                                         }
                                         else {
+                                            // Xử lý nhập số và dấu phẩy
                                             handleKeyPress(key);
                                         }
                                     }}
                                 >
-                                    <Text style={[
-                                        styles.keypadButtonText,
-                                        isActionKey && styles.actionKeyText,
-                                        isConfirmKey && styles.confirmKeyText,
-                                    ]}>
-                                        {key}
-                                    </Text>
+                                    {/* Render nội dung nút (Text hoặc Ionicons) */}
+                                    {renderKeypadButtonContent(key)}
                                 </TouchableOpacity>
                             );
                         })}
@@ -185,6 +219,7 @@ const TransactionInputArea = ({
                 onConfirm={handleConfirmDate}
                 onCancel={hideDatePicker}
                 date={currentDate} // Ngày hiện tại được chọn
+                // locale="vi" // Có thể thêm locale tiếng Việt nếu thư viện hỗ trợ
             />
         </View>
     );
@@ -219,7 +254,7 @@ const styles = StyleSheet.create({
         marginBottom: 5,
     },
     categoryIcon: {
-        fontSize: 24,
+        // Styles cho icon danh mục (đã là Ionicons)
         marginRight: 8,
     },
     categoryName: {
@@ -259,9 +294,9 @@ const styles = StyleSheet.create({
     cameraIconContainer: {
         padding: 8,
     },
-    cameraIcon: {
-        fontSize: 24,
-    },
+    // cameraIcon: { // Đã bỏ style này vì dùng Ionicons
+    //     fontSize: 24,
+    // },
     keypadContainer: {
         // flex: 1, // Để bàn phím chiếm phần còn lại
         // justifyContent: 'flex-end', // Đẩy bàn phím xuống dưới nếu không flex:1
@@ -295,9 +330,9 @@ const styles = StyleSheet.create({
     actionKeyButton: {
         backgroundColor: '#E0E0E0', // Màu nền khác cho nút chức năng
     },
-    actionKeyText: {
-        // color: '#333', // Có thể giữ màu chữ mặc định hoặc thay đổi
-        fontSize: 16, // Chữ nhỏ hơn cho nút chức năng
+    actionKeyText: { // Style này không còn dùng trực tiếp cho Ionicons, có thể bỏ hoặc điều chỉnh
+        // color: '#333', // Màu sắc được đặt trực tiếp trên Ionicons
+        fontSize: 16, // Kích thước được đặt trực tiếp trên Ionicons
     },
     dateKeyButton: {
         backgroundColor: '#FFFACD', // Màu vàng nhạt cho nút "Hôm nay"
@@ -305,10 +340,10 @@ const styles = StyleSheet.create({
     confirmKeyButton: {
         backgroundColor: '#2E8B57', // Màu xanh lá cho nút xác nhận
     },
-    confirmKeyText: {
-        color: '#FFFFFF', // Chữ trắng cho nút xác nhận
-        fontSize: 24, // Chữ to hơn cho nút xác nhận
-        fontWeight: 'bold',
+    confirmKeyText: { // Style này không còn dùng trực tiếp cho Ionicons, có thể bỏ hoặc điều chỉnh
+        // color: '#FFFFFF', // Màu sắc được đặt trực tiếp trên Ionicons
+        fontSize: 24, // Kích thước được đặt trực tiếp trên Ionicons
+        fontWeight: 'bold', // Trọng lượng font được đặt trực tiếp trên Ionicons
     },
 });
 
