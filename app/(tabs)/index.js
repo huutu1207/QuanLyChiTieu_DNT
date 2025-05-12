@@ -1,6 +1,5 @@
 // app/(tabs)/index.js
 
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import MonthYearPickerModal from '../../components/MonthYearPickerModal';
@@ -9,10 +8,10 @@ import SummarySection from '../../components/SummarySection';
 import { off, onValue, ref } from 'firebase/database';
 import { database } from '../../firebaseConfig';
 // Import onAuthStateChanged từ firebase/auth
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { Ionicons } from '@expo/vector-icons'; // Import Ionicons
 import { format } from 'date-fns'; // Import date-fns để định dạng ngày
 import { vi } from 'date-fns/locale'; // Import locale tiếng Việt
-import { Ionicons } from '@expo/vector-icons'; // Import Ionicons
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 
 const HomeScreen = () => {
@@ -139,15 +138,13 @@ const HomeScreen = () => {
     filtered.forEach(trans => {
       // console.log(`Processing transaction ID: ${trans.id}, Type: ${trans.transactionType}, Amount: ${trans.amount}, Typeof Amount: ${typeof trans.amount}`); // Bỏ bớt log này
 
-      if (trans.transactionType === 'Chi tiêu' && typeof trans.amount === 'number') {
-        chiTieu += trans.amount;
-      } else if (trans.transactionType === 'Thu nhập' && typeof trans.amount === 'number') {
-        thuNhap += trans.amount;
-      } else {
-        // console.warn('Dữ liệu giao dịch có transactionType hoặc amount không hợp lệ hoặc thiếu:', trans); // Bỏ bớt log này
-        // console.warn('Transaction causing warning:', trans); // Bỏ bớt log này
-
-      }
+      if (trans.transactionType === 'Chi tiêu' && typeof trans.amount === 'number') { // Sử dụng 'expense'
+            chiTieu += trans.amount;
+        } else if (trans.transactionType === 'income' && typeof trans.amount === 'number') { // Sử dụng 'income'
+            thuNhap += trans.amount;
+        } else {
+            // console.warn('Dữ liệu giao dịch có transactionType hoặc amount không hợp lệ hoặc thiếu:', trans);
+        }
     });
     console.log("Total calculation loop finished.");
     console.log("Calculated totals - Chi tieu:", chiTieu, "Thu nhap:", thuNhap);
@@ -175,13 +172,13 @@ const HomeScreen = () => {
 
   // Hàm tính tổng chi tiêu cho một ngày cụ thể
   const calculateDailyTotalExpense = (transactions) => {
-      let dailyTotal = 0;
-      transactions.forEach(trans => {
-          if (trans.transactionType === 'Chi tiêu' && typeof trans.amount === 'number') {
-              dailyTotal += trans.amount;
-          }
-      });
-      return dailyTotal;
+    let dailyTotal = 0;
+    transactions.forEach(trans => {
+      if (trans.transactionType === 'Chi tiêu' && typeof trans.amount === 'number') {
+        dailyTotal += trans.amount;
+      }
+    });
+    return dailyTotal;
   };
 
 
@@ -243,17 +240,17 @@ const HomeScreen = () => {
             const transactionsForDay = groupedTransactions[dateKey];
             const date = new Date(dateKey); // Chuyển dateKey về Date object
             const formattedDate = format(date, 'dd MMMM EEEE', { locale: vi }); // Định dạng ngày (ví dụ: 12 tháng 5 Thứ hai)
-             const dailyTotalExpense = calculateDailyTotalExpense(transactionsForDay); // Tính tổng chi tiêu ngày
+            const dailyTotalExpense = calculateDailyTotalExpense(transactionsForDay); // Tính tổng chi tiêu ngày
 
             return (
               <View key={dateKey}>
                 {/* Header ngày */}
                 <View style={styles.dailySummaryHeader}>
                   <Text style={styles.dailyDateText}>{formattedDate}</Text>
-                   {/* Hiển thị tổng chi tiêu ngày nếu có */}
-                   {dailyTotalExpense > 0 && (
-                       <Text style={styles.dailyTotalExpenseText}>Chi tiêu: {dailyTotalExpense.toLocaleString()} đ</Text>
-                   )}
+                  {/* Hiển thị tổng chi tiêu ngày nếu có */}
+                  {dailyTotalExpense > 0 && (
+                    <Text style={styles.dailyTotalExpenseText}>Chi tiêu: {dailyTotalExpense.toLocaleString()} đ</Text>
+                  )}
                 </View>
                 {/* Danh sách giao dịch trong ngày */}
                 {transactionsForDay.map(transaction => (
@@ -261,10 +258,10 @@ const HomeScreen = () => {
                     <View style={styles.transactionLeft}>
                       {/* Icon danh mục - Sử dụng Ionicons */}
                       <Ionicons
-                          name={transaction.categoryIcon || 'cash-outline'} // Sử dụng tên icon từ dữ liệu, hoặc icon mặc định nếu không có
-                          size={20} // Kích thước icon
-                          color="#555" // Màu sắc icon
-                          style={styles.categoryIcon}
+                        name={transaction.categoryIcon || 'cash-outline'} // Sử dụng tên icon từ dữ liệu, hoặc icon mặc định nếu không có
+                        size={20} // Kích thước icon
+                        color="#555" // Màu sắc icon
+                        style={styles.categoryIcon}
                       />
 
                       <Text style={styles.categoryName}>{transaction.categoryName}</Text>
@@ -337,24 +334,24 @@ const styles = StyleSheet.create({
   },
   // Style cho header ngày
   dailySummaryHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      backgroundColor: '#e0e0e0', // Nền cho header ngày
-      paddingVertical: 8,
-      paddingHorizontal: 15,
-      marginTop: 10, // Khoảng cách giữa các nhóm ngày
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#e0e0e0', // Nền cho header ngày
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    marginTop: 10, // Khoảng cách giữa các nhóm ngày
   },
   dailyDateText: {
-      fontSize: 15,
-      fontWeight: 'bold',
-      color: '#333',
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#333',
   },
-   dailyTotalExpenseText: {
-      fontSize: 15,
-      color: 'red', // Màu đỏ cho tổng chi tiêu ngày
-      fontWeight: 'bold',
-   },
+  dailyTotalExpenseText: {
+    fontSize: 15,
+    color: 'red', // Màu đỏ cho tổng chi tiêu ngày
+    fontWeight: 'bold',
+  },
   // Style cho từng item giao dịch (giữ nguyên hoặc điều chỉnh nhẹ)
   transactionItem: {
     flexDirection: 'row',
@@ -376,35 +373,35 @@ const styles = StyleSheet.create({
     // elevation: 1,
   },
   transactionLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flex: 1,
-      marginRight: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
   },
   categoryIcon: {
-      fontSize: 20,
-      marginRight: 8,
-      // Có thể thêm style cho nền icon nếu cần
-      // backgroundColor: '#fff',
-      // padding: 5,
-      // borderRadius: 15,
+    fontSize: 20,
+    marginRight: 8,
+    // Có thể thêm style cho nền icon nếu cần
+    // backgroundColor: '#fff',
+    // padding: 5,
+    // borderRadius: 15,
   },
   categoryName: {
-      fontSize: 16,
-      // fontWeight: 'bold', // Bỏ bold để giống ảnh mẫu
-      flexShrink: 1,
+    fontSize: 16,
+    // fontWeight: 'bold', // Bỏ bold để giống ảnh mẫu
+    flexShrink: 1,
   },
   transactionRight: {
-      alignItems: 'flex-end',
+    alignItems: 'flex-end',
   },
   transactionAmount: {
-      fontSize: 16,
-      fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   transactionNote: {
-      fontSize: 13,
-      color: '#777',
-      marginTop: 2,
+    fontSize: 13,
+    color: '#777',
+    marginTop: 2,
   }
 });
 
