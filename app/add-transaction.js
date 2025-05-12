@@ -1,6 +1,6 @@
 // app/add-transaction.js
 import { Stack, useRouter } from 'expo-router';
-// Thêm 'set' vào import từ firebase/database
+// Thêm 'set' và import 'getAuth' từ firebase/auth
 import { onValue, push, ref, serverTimestamp, set } from 'firebase/database';
 import { useEffect, useState } from 'react';
 import {
@@ -19,6 +19,9 @@ import {
 import AddTransactionUI from '../components/AddTransactionUI';
 import TransactionInputArea from '../components/TransactionInputArea';
 import { database } from '../firebaseConfig';
+// Import getAuth từ firebase/auth
+import { getAuth } from 'firebase/auth';
+
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -39,7 +42,12 @@ export default function AddTransactionScreenRoute() {
   const [loadingExpenses, setLoadingExpenses] = useState(true);
   const [errorExpenses, setErrorExpenses] = useState(null);
 
+  // Khởi tạo Auth
+  const auth = getAuth();
+
+
   useEffect(() => {
+    // Logic lấy danh mục vẫn giữ nguyên, không cần UID ở đây
     const categoriesRef = ref(database, 'categories');
     const unsubscribeExpenses = onValue(categoriesRef, (snapshot) => {
       const data = snapshot.val();
@@ -73,8 +81,8 @@ export default function AddTransactionScreenRoute() {
 
   const handleNewCategoryPress = (details) => {
     if (showInputArea) {
-        setShowInputArea(false);
-        setSelectedCategoryDetails(null);
+      setShowInputArea(false);
+      setSelectedCategoryDetails(null);
     }
     router.push({ pathname: '/category-settings', params: { type: details.type } });
   };
@@ -84,6 +92,16 @@ export default function AddTransactionScreenRoute() {
       Alert.alert('Lỗi', 'Không có thông tin danh mục được chọn.');
       return;
     }
+
+    // --- START: Lấy UID người dùng và chuẩn bị dữ liệu ---
+    const user = auth.currentUser; // Lấy người dùng hiện tại
+    if (!user) {
+      Alert.alert('Lỗi', 'Bạn cần đăng nhập để lưu giao dịch.');
+      // Có thể chuyển hướng người dùng đến màn hình đăng nhập ở đây
+      return;
+    }
+    const userId = user.uid; // Lấy UID của người dùng
+
     const transactionData = {
       categoryId: selectedCategoryDetails.id,
       categoryName: selectedCategoryDetails.name,
@@ -93,10 +111,15 @@ export default function AddTransactionScreenRoute() {
       note: transactionDetails.note,
       date: transactionDetails.date.toISOString(),
       createdAt: serverTimestamp(),
+      userId: userId, // Thêm trường userId vào dữ liệu
     };
+    // --- END: Lấy UID người dùng và chuẩn bị dữ liệu ---
+
     console.log('Chuẩn bị lưu giao dịch:', transactionData); // LOG để kiểm tra dữ liệu
+
     try {
-      const transactionsRef = ref(database, 'transactions');
+      // Thay đổi đường dẫn lưu giao dịch để bao gồm userId
+      const transactionsRef = ref(database, `users/${userId}/transactions`);
       const newTransactionRef = push(transactionsRef); // Tạo một key duy nhất cho giao dịch mới
       await set(newTransactionRef, transactionData); // Sử dụng set để ghi dữ liệu vào key đó
 
@@ -115,6 +138,7 @@ export default function AddTransactionScreenRoute() {
     setSelectedCategoryDetails(null);
   };
 
+  // Phần hiển thị Loading
   if (loadingExpenses) {
     return (
       <SafeAreaView style={styles.screenContainer}>
@@ -139,6 +163,7 @@ export default function AddTransactionScreenRoute() {
     );
   }
 
+  // Phần hiển thị Error khi không có danh mục
   if (errorExpenses && expenseCats.length === 0) {
     return (
       <SafeAreaView style={styles.screenContainer}>
@@ -162,6 +187,8 @@ export default function AddTransactionScreenRoute() {
     );
   }
 
+
+  // Phần hiển thị UI chính
   return (
     <SafeAreaView style={styles.screenContainer}>
       <Stack.Screen
@@ -170,14 +197,14 @@ export default function AddTransactionScreenRoute() {
           headerTitleAlign: 'center',
           headerLeft: () => (
             <TouchableOpacity
-                onPress={() => {
-                    if (showInputArea) {
-                        handleCancelTransactionInput();
-                    } else {
-                        router.back();
-                    }
-                }}
-                style={styles.headerButton}
+              onPress={() => {
+                if (showInputArea) {
+                  handleCancelTransactionInput();
+                } else {
+                  router.back();
+                }
+              }}
+              style={styles.headerButton}
             >
               <Text style={styles.headerButtonTextCancel}>Hủy</Text>
             </TouchableOpacity>
@@ -201,21 +228,21 @@ export default function AddTransactionScreenRoute() {
         onRequestClose={handleCancelTransactionInput}
       >
         <TouchableWithoutFeedback onPress={handleCancelTransactionInput}>
-            <View style={styles.modalOverlay}>
-                <TouchableWithoutFeedback>
-                    <View style={styles.modalContentContainer}>
-                        {selectedCategoryDetails && (
-                            <TransactionInputArea
-                                selectedCategory={selectedCategoryDetails}
-                                initialAmount="0"
-                                initialNote=""
-                                onSaveTransaction={handleSaveTransactionInput}
-                                onCancelTransaction={handleCancelTransactionInput}
-                            />
-                        )}
-                    </View>
-                </TouchableWithoutFeedback>
-            </View>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContentContainer}>
+                {selectedCategoryDetails && (
+                  <TransactionInputArea
+                    selectedCategory={selectedCategoryDetails}
+                    initialAmount="0"
+                    initialNote=""
+                    onSaveTransaction={handleSaveTransactionInput}
+                    onCancelTransaction={handleCancelTransactionInput}
+                  />
+                )}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
         </TouchableWithoutFeedback>
       </Modal>
     </SafeAreaView>
