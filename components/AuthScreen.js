@@ -1,4 +1,5 @@
-import { database, auth as firebaseAuth } from '@/firebaseConfig';
+import { database, auth as firebaseAuth } from '../firebaseConfig';
+import { copyDefaultCategoriesToUserAccount } from '../app/utils/firebaseUserUtils';
 import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
@@ -16,7 +17,6 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-
 const MAU_VANG_NUT_CHINH = '#FFD700'; // Màu vàng giống header, hoặc màu bạn chọn
 
 export const AuthScreen = () => {
@@ -66,12 +66,27 @@ export const AuthScreen = () => {
       const newUserProfileData = { name: user.email, email: user.email, joinDate: creationTime, uid: user.uid };
       const userDatabaseRef = ref(database, `users/${user.uid}`);
       await set(userDatabaseRef, newUserProfileData);
+
+      try {
+      // Thay 'default_categories' bằng đường dẫn thực tế nếu cần
+      const categoriesAdded = await copyDefaultCategoriesToUserAccount(user.uid, 'categories');
+      if (categoriesAdded) {
+        console.log(`Categories mặc định đã được thêm cho người dùng ${user.uid} từ AuthScreen.`);
+      } else {
+        console.warn(`Không tìm thấy dữ liệu categories mặc định để thêm cho người dùng ${user.uid}.`);
+        // Bạn có thể muốn thông báo cho người dùng hoặc ghi nhận lỗi này
+      }
+    } catch (categoryError) {
+      console.error(`Lỗi khi thêm categories mặc định cho người dùng ${user.uid} từ AuthScreen:`, categoryError);
+      // Xử lý lỗi này tùy theo logic ứng dụng của bạn
+      // Ví dụ: setErrorMessage('Đăng ký thành công, nhưng có lỗi khi thiết lập danh mục mẫu.');
+    }
     } catch (error) {
       console.error("Lỗi Đăng ký:", error.code, error.message);
     } finally {
       setIsRegistering(false);
     }
-  }, [email, password]);
+  }, [email, password, firebaseAuth]);
 
   const handlePasswordReset = useCallback(async () => {
     if (!email) {
