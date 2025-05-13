@@ -1,7 +1,7 @@
 // app/(tabs)/index.js
 
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MonthYearPickerModal from '../../components/MonthYearPickerModal';
 import SummarySection from '../../components/SummarySection';
 // Import các hàm cần thiết từ Firebase Database và Auth
@@ -11,10 +11,11 @@ import { database } from '../../firebaseConfig';
 import { Ionicons } from '@expo/vector-icons'; // Import Ionicons
 import { format } from 'date-fns'; // Import date-fns để định dạng ngày
 import { vi } from 'date-fns/locale'; // Import locale tiếng Việt
+import { useRouter } from 'expo-router';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
-
 const HomeScreen = () => {
+  const router = useRouter();
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); // Tháng trong JS là 0-11, nên cộng 1
   const [isPickerVisible, setIsPickerVisible] = useState(false);
@@ -138,13 +139,13 @@ const HomeScreen = () => {
     filtered.forEach(trans => {
       // console.log(`Processing transaction ID: ${trans.id}, Type: ${trans.transactionType}, Amount: ${trans.amount}, Typeof Amount: ${typeof trans.amount}`); // Bỏ bớt log này
 
-      if (trans.transactionType === 'Chi tiêu' && typeof trans.amount === 'number') { // Sử dụng 'expense'
-            chiTieu += trans.amount;
-        } else if (trans.transactionType === 'income' && typeof trans.amount === 'number') { // Sử dụng 'income'
-            thuNhap += trans.amount;
-        } else {
-            // console.warn('Dữ liệu giao dịch có transactionType hoặc amount không hợp lệ hoặc thiếu:', trans);
-        }
+      if (trans.transactionType === 'expense' && typeof trans.amount === 'number') { // Sử dụng 'expense'
+        chiTieu += trans.amount;
+      } else if (trans.transactionType === 'income' && typeof trans.amount === 'number') { // Sử dụng 'income'
+        thuNhap += trans.amount;
+      } else {
+        // console.warn('Dữ liệu giao dịch có transactionType hoặc amount không hợp lệ hoặc thiếu:', trans);
+      }
     });
     console.log("Total calculation loop finished.");
     console.log("Calculated totals - Chi tieu:", chiTieu, "Thu nhap:", thuNhap);
@@ -174,7 +175,7 @@ const HomeScreen = () => {
   const calculateDailyTotalExpense = (transactions) => {
     let dailyTotal = 0;
     transactions.forEach(trans => {
-      if (trans.transactionType === 'Chi tiêu' && typeof trans.amount === 'number') {
+      if (trans.transactionType === 'expense' && typeof trans.amount === 'number') {
         dailyTotal += trans.amount;
       }
     });
@@ -208,7 +209,17 @@ const HomeScreen = () => {
       </View>
     );
   }
-
+  const handleTransactionPress = (transaction) => {
+    console.log("Navigating (Expo Router) to details for:", transaction.id);
+    console.log("1. Dữ liệu gốc khi nhấn:", transaction)
+    const jsonString = JSON.stringify(transaction);
+    console.log("2. Dữ liệu sau khi JSON.stringify:", jsonString);
+    router.push({
+      pathname: '/transactionDetail', // Đường dẫn đến file app/transactionDetail.js
+      params: { transactionData: jsonString } 
+      
+    });
+  }
   // Lấy danh sách các ngày (keys của object groupedTransactions) và sắp xếp giảm dần
   const sortedDates = Object.keys(groupedTransactions).sort((a, b) => new Date(b) - new Date(a));
 
@@ -254,29 +265,33 @@ const HomeScreen = () => {
                 </View>
                 {/* Danh sách giao dịch trong ngày */}
                 {transactionsForDay.map(transaction => (
-                  <View key={transaction.id} style={styles.transactionItem}>
+                  <TouchableOpacity
+                    key={transaction.id}
+                    style={styles.transactionItem} // Giữ nguyên style cũ hoặc tạo style mới nếu cần
+                    onPress={() => handleTransactionPress(transaction)} // Gọi hàm xử lý khi nhấn
+                    activeOpacity={0.7} // Hiệu ứng mờ khi nhấn (tùy chọn)
+                  >
+                    {/* Nội dung bên trong giữ nguyên */}
                     <View style={styles.transactionLeft}>
-                      {/* Icon danh mục - Sử dụng Ionicons */}
                       <Ionicons
-                        name={transaction.categoryIcon || 'cash-outline'} // Sử dụng tên icon từ dữ liệu, hoặc icon mặc định nếu không có
-                        size={20} // Kích thước icon
-                        color="#555" // Màu sắc icon
+                        name={transaction.categoryIcon || 'cash-outline'}
+                        size={20}
+                        color="#555"
                         style={styles.categoryIcon}
                       />
-
                       <Text style={styles.categoryName}>{transaction.categoryName}</Text>
                     </View>
                     <View style={styles.transactionRight}>
                       <Text style={[
                         styles.transactionAmount,
-                        { color: transaction.transactionType === 'Chi tiêu' ? 'red' : 'green' }
+                        { color: transaction.transactionType === 'expense' ? 'red' : 'green' }
                       ]}>
-                        {transaction.transactionType === 'Chi tiêu' ? '-' : '+'}
-                        {transaction.amount != null ? transaction.amount.toLocaleString() : '0'} đ {/* Thêm lại "đ" */}
+                        {transaction.transactionType === 'expense' ? '-' : '+'}
+                        {transaction.amount != null ? transaction.amount.toLocaleString() : '0'} đ
                       </Text>
                       {transaction.note ? <Text style={styles.transactionNote}>{transaction.note}</Text> : null}
                     </View>
-                  </View>
+                  </TouchableOpacity> // Đóng TouchableOpacity
                 ))}
               </View>
             );
@@ -349,7 +364,6 @@ const styles = StyleSheet.create({
   },
   dailyTotalExpenseText: {
     fontSize: 15,
-    color: 'red', // Màu đỏ cho tổng chi tiêu ngày
     fontWeight: 'bold',
   },
   // Style cho từng item giao dịch (giữ nguyên hoặc điều chỉnh nhẹ)
