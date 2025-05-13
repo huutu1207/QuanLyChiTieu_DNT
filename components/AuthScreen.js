@@ -1,26 +1,23 @@
-// components/AuthScreen.js
 import { database, auth as firebaseAuth } from '@/firebaseConfig';
 import {
-    createUserWithEmailAndPassword,
-    sendPasswordResetEmail,
-    signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
 } from 'firebase/auth';
 import { ref, set } from "firebase/database";
-import { useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 const MAU_VANG_NUT_CHINH = '#FFD700'; // Màu vàng giống header, hoặc màu bạn chọn
-// const MAU_VANG_NUT_DANG_KY = '#FFC107'; // Bạn có thể dùng màu này nếu muốn nút đăng ký khác một chút
 
 export const AuthScreen = () => {
   const [email, setEmail] = useState('');
@@ -29,17 +26,24 @@ export const AuthScreen = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [isSendingResetEmail, setIsSendingResetEmail] = useState(false);
   const [authMode, setAuthMode] = useState('login');
+  const [errorMessage, setErrorMessage] = useState(''); // New state for error messages
 
-  // ... (các hàm handleLoginAttempt, handleRegisterAttempt, handlePasswordReset giữ nguyên)
   const handleLoginAttempt = useCallback(async () => {
     if (!email || !password) {
+      setErrorMessage('Vui lòng nhập email và mật khẩu');
       return;
     }
     setIsLoggingIn(true);
+    setErrorMessage(''); // Clear previous errors
     try {
       await signInWithEmailAndPassword(firebaseAuth, email, password);
     } catch (error) {
       console.error("Lỗi Đăng nhập:", error.code, error.message);
+      if (error.code === 'auth/invalid-credential') {
+        setErrorMessage('Email hoặc mật khẩu không đúng');
+      } else {
+        setErrorMessage('Đã có lỗi xảy ra, vui lòng thử lại');
+      }
     } finally {
       setIsLoggingIn(false);
     }
@@ -71,20 +75,21 @@ export const AuthScreen = () => {
 
   const handlePasswordReset = useCallback(async () => {
     if (!email) {
-      Alert.alert("Thiếu thông tin", "Vui lòng nhập địa chỉ email của bạn.");
+      setErrorMessage('Vui lòng nhập địa chỉ email của bạn');
       return;
     }
     setIsSendingResetEmail(true);
+    setErrorMessage(''); // Clear previous errors
     try {
       await sendPasswordResetEmail(firebaseAuth, email);
-      Alert.alert("Kiểm tra Email", "Một liên kết đặt lại mật khẩu đã được gửi đến email của bạn (nếu tài khoản tồn tại).");
+      setErrorMessage('Liên kết đặt lại mật khẩu đã được gửi đến email của bạn');
     } catch (error) {
       console.error("Lỗi Gửi Email Đặt Lại Mật Khẩu:", error.code, error.message);
+      setErrorMessage('Không tìm thấy email hoặc có lỗi xảy ra');
     } finally {
       setIsSendingResetEmail(false);
     }
   }, [email]);
-
 
   const isAnySubmitting = isLoggingIn || isRegistering || isSendingResetEmail;
 
@@ -132,13 +137,15 @@ export const AuthScreen = () => {
               editable={!isAnySubmitting}
             />
           )}
+          {errorMessage ? (
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          ) : null}
 
           {authMode !== 'forgotPassword' ? (
             <TouchableOpacity
               style={[
                 styles.button,
-                // Cả hai nút đăng nhập và đăng ký chính đều dùng màu vàng
-                styles.mainActionButtonYellow, // Style mới cho nút màu vàng
+                styles.mainActionButtonYellow,
                 isAnySubmitting && styles.buttonDisabled
               ]}
               onPress={handleSubmit}
@@ -146,7 +153,7 @@ export const AuthScreen = () => {
               activeOpacity={0.8}
             >
               {(isLoggingIn && authMode === 'login') || (isRegistering && authMode === 'register') ? (
-                <ActivityIndicator color={'#333'} /> // Chữ/Spinner màu đậm trên nền vàng
+                <ActivityIndicator color={'#333'} />
               ) : (
                 <Text style={styles.mainActionButtonText}>
                   {authMode === 'login' ? 'Đăng nhập' : 'Đăng ký'}
@@ -247,6 +254,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     color: '#1F2937',
   },
+  errorText: {
+    color: '#FF0000',
+    fontSize: 14,
+    marginBottom: 15,
+    textAlign: 'center',
+  },
   button: {
     borderRadius: 10,
     paddingVertical: 15,
@@ -255,20 +268,18 @@ const styles = StyleSheet.create({
     minHeight: 48,
     justifyContent: 'center'
   },
-  // Style mới cho các nút hành động chính (Đăng nhập, Đăng ký) có màu vàng
   mainActionButtonYellow: {
     backgroundColor: MAU_VANG_NUT_CHINH,
   },
-  // Style cho text của các nút hành động chính màu vàng
   mainActionButtonText: {
-    color: '#333', // Chữ màu đen/đậm để dễ đọc trên nền vàng
+    color: '#333',
     fontWeight: '600',
     fontSize: 16,
   },
   forgotPasswordButton: {
-    backgroundColor: '#6c757d', // Màu xám cho nút quên mật khẩu
+    backgroundColor: '#6c757d',
   },
-  buttonTextWhite: { // Dành cho các nút có nền tối, chữ trắng
+  buttonTextWhite: {
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
@@ -290,7 +301,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   switchButtonText: {
-    color: '#007AFF', // Màu xanh dương mặc định của iOS cho link, hoặc bạn có thể chọn màu khác
+    color: '#007AFF',
     fontSize: 14,
     fontWeight: '500',
   },
