@@ -56,17 +56,17 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" color={color} size={size} />,
           headerLeft: () => (
             <TouchableOpacity onPress={() => { /* Mở drawer hoặc hành động khác */ }} style={{ marginLeft: 15 }}>
-              <Ionicons name="menu" size={28} color="#333" />
+              {/* <Ionicons name="menu" size={28} color="#333" /> */}
             </TouchableOpacity>
           ),
           headerRight: () => (
             <View style={{ flexDirection: 'row', marginRight: 15 }}>
-              <TouchableOpacity onPress={() => { router.push('/search'); /* Điều hướng đến màn hình tìm kiếm */ }} style={{ marginRight: 15 }}>
+              {/* <TouchableOpacity onPress={() => { router.push('/search'); } style={{ marginRight: 15 }}>
                 <Ionicons name="search" size={24} color="#333" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => { /* Mở lịch hoặc hành động khác */ }}>
+              </TouchableOpacity> */}
+              {/* <TouchableOpacity onPress={() => { }}>
                 <Ionicons name="calendar-outline" size={24} color="#333" />
-              </TouchableOpacity>
+              </TouchableOpacity> */}
             </View>
           ),
         }}

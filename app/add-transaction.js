@@ -4,17 +4,17 @@ import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { onValue, push, ref, serverTimestamp, set } from 'firebase/database';
 import { useEffect, useState } from 'react'; // Bỏ useCallback nếu không dùng nữa
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Modal,
-  Platform,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Modal,
+    Platform,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
 } from 'react-native';
 import AddTransactionUI from '../components/AddTransactionUI';
 import TransactionInputArea from '../components/TransactionInputArea';
@@ -131,7 +131,7 @@ export default function AddTransactionScreenRoute() {
                         isDefault: false,
                         ...data[key], // name, icon, type
                     };
-                     // Phân loại dựa trên trường 'type'
+                    // Phân loại dựa trên trường 'type'
                     if (category.type === 'expense') {
                         loadedUserExpenses.push(category);
                     } else if (category.type === 'income') {
@@ -255,13 +255,13 @@ export default function AddTransactionScreenRoute() {
     if (isLoading) {
         // ... JSX cho màn hình Loading (giữ nguyên)
         return (
-          <SafeAreaView style={styles.screenContainer}>
-            <Stack.Screen options={{ /* ... */ }} />
-            <View style={styles.centeredMessage}>
-              <ActivityIndicator size="large" color="#333" />
-              <Text style={styles.loadingText}>Đang tải danh mục...</Text>
-            </View>
-          </SafeAreaView>
+            <SafeAreaView style={styles.screenContainer}>
+                <Stack.Screen options={{ /* ... */ }} />
+                <View style={styles.centeredMessage}>
+                    <ActivityIndicator size="large" color="#333" />
+                    <Text style={styles.loadingText}>Đang tải danh mục...</Text>
+                </View>
+            </SafeAreaView>
         );
     }
 
@@ -269,13 +269,13 @@ export default function AddTransactionScreenRoute() {
     if (overallError && finalExpenseCats.length === 0 && finalIncomeCats.length === 0) {
         // ... JSX cho màn hình Error (giữ nguyên)
         return (
-          <SafeAreaView style={styles.screenContainer}>
-            <Stack.Screen options={{ /* ... */ }} />
-            <View style={styles.centeredMessage}>
-              <Text style={styles.errorText}>{overallError}</Text>
-              {errorUserCats && !userId && <Text style={styles.errorText}>Vui lòng đăng nhập để xem/thêm danh mục riêng.</Text>}
-            </View>
-          </SafeAreaView>
+            <SafeAreaView style={styles.screenContainer}>
+                <Stack.Screen options={{ /* ... */ }} />
+                <View style={styles.centeredMessage}>
+                    <Text style={styles.errorText}>{overallError}</Text>
+                    {errorUserCats && !userId && <Text style={styles.errorText}>Vui lòng đăng nhập để xem/thêm danh mục riêng.</Text>}
+                </View>
+            </SafeAreaView>
         );
     }
 
@@ -348,34 +348,34 @@ export default function AddTransactionScreenRoute() {
 
 // --- Styles (Giữ nguyên) ---
 const styles = StyleSheet.create({
-  screenContainer: { flex: 1, backgroundColor: '#fff', },
-  headerButton: { paddingHorizontal: Platform.OS === 'ios' ? 10 : 15, paddingVertical: 5, },
-  headerButtonTextCancel: { color: '#FF6347', fontSize: 16, fontWeight: '500', },
-  centeredMessage: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#f8f9fa', },
-  loadingText: { marginTop: 15, fontSize: 16, color: '#495057', },
-  errorText: { fontSize: 16, color: '#dc3545', textAlign: 'center', marginBottom: 10, },
-  inlineErrorText: { // Style cho lỗi hiển thị inline
-    color: 'orange',
-    textAlign: 'center',
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    backgroundColor: '#fff8e1',
-    fontSize: 14,
-  },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.6)', justifyContent: 'flex-end', },
-  modalContentContainer: {
-    height: SCREEN_HEIGHT * 0.65, // Giữ nguyên hoặc điều chỉnh // <<< DÒNG NÀY BỊ COMMENT
-    maxHeight: SCREEN_HEIGHT * 0.75, // Giới hạn chiều cao tối đa
-    minHeight: SCREEN_HEIGHT * 0.4,  // Chiều cao tối thiểu    // <<< DÒNG NÀY ĐANG HOẠT ĐỘNG
-    backgroundColor: '#ffffff', // White background for modal
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
-  },
+    screenContainer: { flex: 1, backgroundColor: '#fff', },
+    headerButton: { paddingHorizontal: Platform.OS === 'ios' ? 10 : 15, paddingVertical: 5, },
+    headerButtonTextCancel: { color: '#FF6347', fontSize: 16, fontWeight: '500', },
+    centeredMessage: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#f8f9fa', },
+    loadingText: { marginTop: 15, fontSize: 16, color: '#495057', },
+    errorText: { fontSize: 16, color: '#dc3545', textAlign: 'center', marginBottom: 10, },
+    inlineErrorText: { // Style cho lỗi hiển thị inline
+        color: 'orange',
+        textAlign: 'center',
+        paddingVertical: 5,
+        paddingHorizontal: 10,
+        backgroundColor: '#fff8e1',
+        fontSize: 14,
+    },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.6)', justifyContent: 'flex-end', },
+    modalContentContainer: {
+        height: SCREEN_HEIGHT * 0.65, // Giữ nguyên hoặc điều chỉnh // <<< DÒNG NÀY BỊ COMMENT
+        maxHeight: SCREEN_HEIGHT * 0.75, // Giới hạn chiều cao tối đa
+        minHeight: SCREEN_HEIGHT * 0.4,  // Chiều cao tối thiểu    // <<< DÒNG NÀY ĐANG HOẠT ĐỘNG
+        backgroundColor: '#ffffff', // White background for modal
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingTop: 10,
+        paddingBottom: Platform.OS === 'ios' ? 20 : 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 5,
+    },
 });
