@@ -1,5 +1,3 @@
-import { database, auth as firebaseAuth } from '../firebaseConfig';
-import { copyDefaultCategoriesToUserAccount } from '../app/utils/firebaseUserUtils';
 import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
@@ -17,32 +15,51 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-const MAU_VANG_NUT_CHINH = '#FFD700'; // Màu vàng giống header, hoặc màu bạn chọn
+import { database, auth as firebaseAuth } from '../firebaseConfig';
+
+const copyDefaultCategoriesToUserAccount = async (userId, categoriesPath) => {
+  console.log(`(Placeholder) Sẽ copy categories mặc định cho user: ${userId} từ path: ${categoriesPath}`);
+  return false;
+};
+
+const MAU_VANG_NUT_CHINH = '#FFD700';
 
 export const AuthScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [isSendingResetEmail, setIsSendingResetEmail] = useState(false);
   const [authMode, setAuthMode] = useState('login');
-  const [errorMessage, setErrorMessage] = useState(''); // New state for error messages
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const clearFormState = (keepEmail = false) => {
+    if (!keepEmail) setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setErrorMessage('');
+  };
 
   const handleLoginAttempt = useCallback(async () => {
     if (!email || !password) {
-      setErrorMessage('Vui lòng nhập email và mật khẩu');
+      setErrorMessage('Vui lòng nhập email và mật khẩu.');
       return;
     }
     setIsLoggingIn(true);
-    setErrorMessage(''); // Clear previous errors
+    setErrorMessage('');
     try {
       await signInWithEmailAndPassword(firebaseAuth, email, password);
+      console.log("Đăng nhập thành công");
     } catch (error) {
       console.error("Lỗi Đăng nhập:", error.code, error.message);
-      if (error.code === 'auth/invalid-credential') {
-        setErrorMessage('Email hoặc mật khẩu không đúng');
-      } else {
-        setErrorMessage('Đã có lỗi xảy ra, vui lòng thử lại');
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        setErrorMessage('Email hoặc mật khẩu không đúng.');
+      } else if (error.code === 'auth/invalid-email') {
+        setErrorMessage('Địa chỉ email không hợp lệ.');
+      }
+      else {
+        setErrorMessage('Đã có lỗi xảy ra khi đăng nhập. Vui lòng thử lại.');
       }
     } finally {
       setIsLoggingIn(false);
@@ -50,57 +67,87 @@ export const AuthScreen = () => {
   }, [email, password]);
 
   const handleRegisterAttempt = useCallback(async () => {
-    if (!email || !password) {
+    if (!email || !password || !confirmPassword) {
+      setErrorMessage('Vui lòng nhập đầy đủ email, mật khẩu và xác nhận mật khẩu.');
       return;
     }
     if (password.length < 6) {
+      setErrorMessage('Mật khẩu phải có ít nhất 6 ký tự.');
       return;
     }
+    if (password !== confirmPassword) {
+      setErrorMessage('Mật khẩu và xác nhận mật khẩu không khớp.');
+      return;
+    }
+
     setIsRegistering(true);
+    setErrorMessage('');
     try {
       const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
       const user = userCredential.user;
       const creationTime = user.metadata.creationTime
-                           ? new Date(user.metadata.creationTime).toLocaleDateString('vi-VN')
-                           : new Date().toLocaleDateString('vi-VN');
-      const newUserProfileData = { name: user.email, email: user.email, joinDate: creationTime, uid: user.uid };
+                            ? new Date(user.metadata.creationTime).toLocaleDateString('vi-VN')
+                            : new Date().toLocaleDateString('vi-VN');
+
+      const newUserProfileData = {
+        name: user.email,
+        email: user.email,
+        joinDate: creationTime,
+        uid: user.uid,
+      };
       const userDatabaseRef = ref(database, `users/${user.uid}`);
       await set(userDatabaseRef, newUserProfileData);
+      console.log("Thông tin người dùng đã được lưu vào Realtime Database.");
 
       try {
-      // Thay 'default_categories' bằng đường dẫn thực tế nếu cần
-      const categoriesAdded = await copyDefaultCategoriesToUserAccount(user.uid, 'categories');
-      if (categoriesAdded) {
-        console.log(`Categories mặc định đã được thêm cho người dùng ${user.uid} từ AuthScreen.`);
-      } else {
-        console.warn(`Không tìm thấy dữ liệu categories mặc định để thêm cho người dùng ${user.uid}.`);
-        // Bạn có thể muốn thông báo cho người dùng hoặc ghi nhận lỗi này
+        const categoriesAdded = await copyDefaultCategoriesToUserAccount(user.uid, 'categories');
+        if (categoriesAdded) {
+          console.log(`Categories mặc định đã được thêm cho người dùng ${user.uid}.`);
+        } else {
+          console.warn(`Không tìm thấy hoặc không thể thêm categories mặc định cho người dùng ${user.uid}.`);
+        }
+      } catch (categoryError) {
+        console.error(`Lỗi khi thêm categories mặc định cho người dùng ${user.uid}:`, categoryError);
       }
-    } catch (categoryError) {
-      console.error(`Lỗi khi thêm categories mặc định cho người dùng ${user.uid} từ AuthScreen:`, categoryError);
-      // Xử lý lỗi này tùy theo logic ứng dụng của bạn
-      // Ví dụ: setErrorMessage('Đăng ký thành công, nhưng có lỗi khi thiết lập danh mục mẫu.');
-    }
+
+      console.log("Đăng ký thành công!");
+
     } catch (error) {
       console.error("Lỗi Đăng ký:", error.code, error.message);
+      if (error.code === 'auth/email-already-in-use') {
+        setErrorMessage('Địa chỉ email này đã được sử dụng.');
+      } else if (error.code === 'auth/weak-password') {
+        setErrorMessage('Mật khẩu quá yếu. Vui lòng chọn mật khẩu mạnh hơn.');
+      } else if (error.code === 'auth/invalid-email') {
+        setErrorMessage('Địa chỉ email không hợp lệ.');
+      }
+      else {
+        setErrorMessage('Đã có lỗi xảy ra trong quá trình đăng ký. Vui lòng thử lại.');
+      }
     } finally {
       setIsRegistering(false);
     }
-  }, [email, password, firebaseAuth]);
+  }, [email, password, confirmPassword]);
 
   const handlePasswordReset = useCallback(async () => {
     if (!email) {
-      setErrorMessage('Vui lòng nhập địa chỉ email của bạn');
+      setErrorMessage('Vui lòng nhập địa chỉ email của bạn.');
       return;
     }
     setIsSendingResetEmail(true);
-    setErrorMessage(''); // Clear previous errors
+    setErrorMessage('');
     try {
       await sendPasswordResetEmail(firebaseAuth, email);
-      setErrorMessage('Liên kết đặt lại mật khẩu đã được gửi đến email của bạn');
+      setErrorMessage('Một email hướng dẫn đặt lại mật khẩu đã được gửi đến địa chỉ email của bạn (nếu tài khoản tồn tại). Vui lòng kiểm tra hộp thư, kể cả mục spam.');
     } catch (error) {
       console.error("Lỗi Gửi Email Đặt Lại Mật Khẩu:", error.code, error.message);
-      setErrorMessage('Không tìm thấy email hoặc có lỗi xảy ra');
+      if (error.code === 'auth/user-not-found') {
+        setErrorMessage('Không tìm thấy tài khoản nào ứng với địa chỉ email này.');
+      } else if (error.code === 'auth/invalid-email') {
+        setErrorMessage('Địa chỉ email không hợp lệ.');
+      } else {
+        setErrorMessage('Đã có lỗi xảy ra khi gửi email đặt lại mật khẩu. Vui lòng thử lại.');
+      }
     } finally {
       setIsSendingResetEmail(false);
     }
@@ -111,7 +158,7 @@ export const AuthScreen = () => {
   const handleSubmit = () => {
     if (authMode === 'login') {
       handleLoginAttempt();
-    } else { // authMode === 'register'
+    } else {
       handleRegisterAttempt();
     }
   };
@@ -141,16 +188,30 @@ export const AuthScreen = () => {
             editable={!isAnySubmitting}
           />
           {authMode !== 'forgotPassword' && (
-            <TextInput
-              style={styles.input}
-              placeholder="Mật khẩu"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              textContentType="password"
-              autoComplete="password"
-              editable={!isAnySubmitting}
-            />
+            <>
+              <TextInput
+                style={styles.input}
+                placeholder="Mật khẩu"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                textContentType={authMode === 'login' ? "password" : "newPassword"}
+                autoComplete={authMode === 'login' ? 'password' : 'new-password'}
+                editable={!isAnySubmitting}
+              />
+              {authMode === 'register' && (
+                <TextInput
+                  style={styles.input}
+                  placeholder="Xác nhận mật khẩu"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry
+                  textContentType="newPassword"
+                  autoComplete="new-password"
+                  editable={!isAnySubmitting}
+                />
+              )}
+            </>
           )}
           {errorMessage ? (
             <Text style={styles.errorText}>{errorMessage}</Text>
@@ -185,7 +246,7 @@ export const AuthScreen = () => {
               {isSendingResetEmail ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonTextWhite}>Gửi liên kết đặt lại</Text>
+                <Text style={styles.buttonTextWhite}>Gửi email đặt lại</Text>
               )}
             </TouchableOpacity>
           )}
@@ -193,14 +254,14 @@ export const AuthScreen = () => {
           {authMode === 'login' && (
             <View style={styles.linksContainer}>
               <TouchableOpacity
-                onPress={() => setAuthMode('register')}
+                onPress={() => { setAuthMode('register'); clearFormState(); }}
                 disabled={isAnySubmitting}
                 style={styles.switchButton}
               >
                 <Text style={styles.switchButtonText}>Chưa có tài khoản? Đăng ký</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => setAuthMode('forgotPassword')}
+                onPress={() => { setAuthMode('forgotPassword'); clearFormState(true);}}
                 disabled={isAnySubmitting}
                 style={styles.switchButton}
               >
@@ -211,7 +272,7 @@ export const AuthScreen = () => {
 
           {authMode === 'register' && (
             <TouchableOpacity
-              onPress={() => setAuthMode('login')}
+              onPress={() => { setAuthMode('login'); clearFormState(); }}
               disabled={isAnySubmitting}
               style={styles.switchButtonFullWidth}
             >
@@ -221,14 +282,13 @@ export const AuthScreen = () => {
 
           {authMode === 'forgotPassword' && (
             <TouchableOpacity
-              onPress={() => setAuthMode('login')}
+              onPress={() => { setAuthMode('login'); clearFormState(true);}}
               disabled={isAnySubmitting}
               style={styles.switchButtonFullWidth}
             >
               <Text style={styles.switchButtonText}>Quay lại Đăng nhập</Text>
             </TouchableOpacity>
           )}
-
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -242,82 +302,98 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: '#F0F2F5',
   },
   formContainer: {
     width: '100%',
     maxWidth: 400,
-    padding: 20,
-    backgroundColor: '#fff',
-    borderRadius: 10,
+    padding: 25,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 4.00,
+    elevation: 5,
   },
   title: {
-    fontSize: 26,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '600',
     textAlign: 'center',
-    marginBottom: 30,
-    color: '#1F2937',
+    marginBottom: 35,
+    color: '#1A202C',
   },
   input: {
-    height: 50,
-    borderColor: '#D1D5DB',
+    height: 52,
+    borderColor: '#CBD5E0',
     borderWidth: 1,
-    borderRadius: 10,
-    marginBottom: 15,
-    paddingHorizontal: 15,
+    borderRadius: 8,
+    marginBottom: 18,
+    paddingHorizontal: 16,
     fontSize: 16,
-    backgroundColor: '#F9FAFB',
-    color: '#1F2937',
+    backgroundColor: '#F7FAFC',
+    color: '#2D3748',
   },
   errorText: {
-    color: '#FF0000',
+    color: '#E53E3E',
     fontSize: 14,
-    marginBottom: 15,
+    marginBottom: 18,
     textAlign: 'center',
   },
   button: {
-    borderRadius: 10,
-    paddingVertical: 15,
+    borderRadius: 8,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginBottom: 10,
-    minHeight: 48,
-    justifyContent: 'center'
+    marginBottom: 12,
+    minHeight: 50,
+    justifyContent: 'center',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2.00,
+    elevation: 2,
   },
   mainActionButtonYellow: {
     backgroundColor: MAU_VANG_NUT_CHINH,
   },
   mainActionButtonText: {
-    color: '#333',
+    color: '#2D3748',
     fontWeight: '600',
     fontSize: 16,
   },
   forgotPasswordButton: {
-    backgroundColor: '#6c757d',
+    backgroundColor: '#4A5568',
   },
   buttonTextWhite: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontWeight: '600',
     fontSize: 16,
   },
   buttonDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   linksContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 15,
+    marginTop: 20,
   },
   switchButton: {
     paddingVertical: 10,
   },
   switchButtonFullWidth: {
-    marginTop: 15,
+    marginTop: 20,
     paddingVertical: 10,
     alignItems: 'center',
   },
   switchButtonText: {
-    color: '#007AFF',
-    fontSize: 14,
+    color: '#2B6CB0',
+    fontSize: 15,
     fontWeight: '500',
   },
 });

@@ -1,109 +1,169 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-import { Collapsible } from '@/components/Collapsible';
-import { ExternalLink } from '@/components/ExternalLink';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { IconSymbol } from '@/components/ui/IconSymbol';
+// app/(tabs)/report.js
+import ReportDetails from '@/components/ReportDetails';
+import { database } from '@/firebaseConfig';
+import { Ionicons } from '@expo/vector-icons';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { off, onValue, ref } from 'firebase/database';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { COLORS } from '../colors';
 
-export default function TabTwoScreen() {
+export default function ReportScreen() {
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [monthlyAnalysisData, setMonthlyAnalysisData] = useState({
+    monthDisplay: `Thg ${selectedMonth}/${selectedYear}`,
+    expenses: 0, income: 0, balance: 0, transactions: [],
+    budgetAmount: 0, budgetSet: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const auth = getAuth();
+
+  useEffect(() => {
+    const authUnsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setLoading(true);
+        setError(null);
+        const userId = user.uid;
+        const transactionsPath = `users/${userId}/transactions`;
+        const budgetPath = `users/${userId}/budgets/${selectedYear}-${selectedMonth}`;
+        const transactionsRefDb = ref(database, transactionsPath);
+        const budgetMonthRefDb = ref(database, budgetPath);
+
+        let transactionsDataCache = null;
+        let budgetDataCache = null;
+
+        const processCombinedData = () => {
+          if (transactionsDataCache === null || budgetDataCache === null) {
+            if (transactionsDataCache !== null && budgetDataCache === undefined) {
+              // Budget node might not exist for the month, proceed with empty budget
+              budgetDataCache = {}; // Ensure budgetDataCache is not undefined
+            } else {
+              return; // Wait for both data sources if transactions are also pending
+            }
+          }
+
+          let allTransactions = [];
+          if (transactionsDataCache) {
+            allTransactions = Object.keys(transactionsDataCache).map(key => ({
+              id: key, ...transactionsDataCache[key],
+              amount: parseFloat(transactionsDataCache[key].amount) || 0,
+            }));
+          }
+
+          const currentMonthTransactions = allTransactions.filter(t => {
+            if (!t.date || typeof t.date !== 'string') return false;
+            try {
+              const d = new Date(t.date);
+              return d.getFullYear() === selectedYear && (d.getMonth() + 1) === selectedMonth;
+            } catch (e) {
+              return false;
+            }
+          });
+
+          let monthExpenses = 0, monthIncome = 0;
+          currentMonthTransactions.forEach(t => {
+            if (t.transactionType === 'expense') monthExpenses += t.amount;
+            else if (t.transactionType === 'income') monthIncome += t.amount;
+          });
+
+          let calculatedTotalBudget = 0, isAnyBudgetSet = false;
+          if (budgetDataCache && budgetDataCache.categories) {
+            calculatedTotalBudget = Object.values(budgetDataCache.categories)
+              .reduce((sum, cat) => sum + (parseFloat(cat.amount) || 0), 0);
+            if (calculatedTotalBudget > 0) isAnyBudgetSet = true;
+          } else if (budgetDataCache && budgetDataCache.totalAmount > 0) {
+            calculatedTotalBudget = parseFloat(budgetDataCache.totalAmount) || 0;
+            if (calculatedTotalBudget > 0) isAnyBudgetSet = true;
+          }
+
+          setMonthlyAnalysisData({
+            monthDisplay: `Thg ${selectedMonth}/${selectedYear}`,
+            expenses: monthExpenses, income: monthIncome, balance: monthIncome - monthExpenses,
+            transactions: currentMonthTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+            budgetAmount: calculatedTotalBudget, budgetSet: isAnyBudgetSet,
+          });
+          setLoading(false);
+        };
+
+        const transactionsListener = onValue(transactionsRefDb, (snapshot) => {
+          transactionsDataCache = snapshot.val();
+          if (budgetDataCache !== null) { // Ensure budget listener has had a chance to run once
+            processCombinedData();
+          }
+        }, (err) => {
+          setError("Lỗi tải giao dịch.");
+          setLoading(false);
+        });
+
+        const budgetListener = onValue(budgetMonthRefDb, (snapshot) => {
+          budgetDataCache = snapshot.val() || {};
+          if (transactionsDataCache !== null) { // Ensure transaction listener has had a chance to run once
+             processCombinedData();
+          }
+        }, (err) => {
+          setError("Lỗi tải ngân sách.");
+          setLoading(false);
+        });
+
+        return () => {
+          off(transactionsRefDb, 'value', transactionsListener);
+          off(budgetMonthRefDb, 'value', budgetListener);
+        };
+      } else {
+        setMonthlyAnalysisData({
+          monthDisplay: `Thg ${selectedMonth}/${selectedYear}`,
+          expenses: 0, income: 0, balance: 0, transactions: [],
+          budgetAmount: 0, budgetSet: false,
+        });
+        setLoading(false);
+        setError("Vui lòng đăng nhập.");
+      }
+    });
+    return () => authUnsubscribe();
+  }, [auth, selectedYear, selectedMonth]);
+
+  const handleMonthYearChange = (year, month) => {
+    setSelectedYear(year);
+    setSelectedMonth(month);
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
+    <View style={[styles.container, { backgroundColor: COLORS.background }]}>
+      <View style={[styles.mainHeader, { backgroundColor: COLORS.primaryAccent }]}>
+        <View style={styles.mainHeaderLeftPlaceholder} />
+        <Text style={[styles.mainHeaderTitle, { color: COLORS.black }]}>Thống kê hàng tháng</Text>
+        <TouchableOpacity style={styles.mainHeaderRight}>
+          <Text style={[styles.mainHeaderRightText, { color: COLORS.black }]}>Tất cả</Text>
+          <Ionicons name="filter-outline" size={20} color={COLORS.black} />
+        </TouchableOpacity>
+      </View>
+
+      {loading ? (
+        <ActivityIndicator size="large" color={COLORS.primaryAccent} style={styles.centeredFeedback} />
+      ) : error ? (
+        <Text style={[styles.errorText, { color: COLORS.expense }]}>{error}</Text>
+      ) : (
+        <ReportDetails
+          data={monthlyAnalysisData}
+          type="analysis"
+          selectedYear={selectedYear}
+          selectedMonth={selectedMonth}
+          onMonthYearChange={handleMonthYearChange}
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Reports</ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image source={require('@/assets/images/react-logo.png')} style={{ alignSelf: 'center' }} />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Custom fonts">
-        <ThemedText>
-          Open <ThemedText type="defaultSemiBold">app/_layout.tsx</ThemedText> to see how to load{' '}
-          <ThemedText style={{ fontFamily: 'SpaceMono' }}>
-            custom fonts such as this one.
-          </ThemedText>
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/versions/latest/sdk/font">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful <ThemedText type="defaultSemiBold">react-native-reanimated</ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
+  container: { flex: 1 },
+  mainHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, paddingTop: Platform.OS === 'ios' ? 50 : 30, paddingBottom: 15 },
+  mainHeaderLeftPlaceholder: { width: 60 },
+  mainHeaderTitle: { fontSize: 18, fontWeight: 'bold' },
+  mainHeaderRight: { flexDirection: 'row', alignItems: 'center', width: 65, justifyContent: 'flex-end' },
+  mainHeaderRightText: { marginRight: 5, fontSize: 13 },
+  centeredFeedback: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorText: { textAlign: 'center', marginTop: 20, fontSize: 16, paddingHorizontal: 20, flex: 1 },
 });
