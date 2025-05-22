@@ -191,9 +191,21 @@ export const generateChartData = (expenses: Expense[], year: number, month: numb
           Thống kê theo thời gian
         </Text>
 
-        <div style={{ width: 650, height: 200, marginBottom: 5 }}>
-          <Line data={lineData} options={lineOptions} />
-        </div>
+        <div
+            style={{
+                width: '100%',             // Chiếm toàn bộ chiều ngang để có không gian canh giữa
+                height: 200,
+                marginBottom: 5,
+                display: 'flex',
+                justifyContent: 'center',  // Canh giữa theo chiều ngang
+                alignItems: 'center'       // Canh giữa theo chiều dọc (nếu cần)
+            }}
+            >
+            <div style={{ width: 650 }}>
+                <Line data={lineData} options={lineOptions} />
+            </div>
+        </div>
+
 
         <Text style={{ textAlign: 'center', fontSize: 16, marginTop: 10 }}>
             Tổng cộng: {chartData.totalExpensePeriod.toLocaleString()} VND

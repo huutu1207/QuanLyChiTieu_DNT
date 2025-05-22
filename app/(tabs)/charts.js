@@ -1,183 +1,152 @@
+import { Ionicons } from '@expo/vector-icons';
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Platform, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { styles } from '../../components/StylesChart';
+import { Platform, SafeAreaView, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
 
 import ExpenseChartsApp, { generateChartData as generateChartDataApp } from '../../components/ExpenseChartsApp';
 import ExpenseChartsWeb, { generateChartData as generateChartDataWeb } from '../../components/ExpenseChartsWeb';
+import { styles } from '../../components/StylesChart';
 
 import { onValue, ref } from 'firebase/database';
-import { database as db } from '../../firebaseConfig'; // Đảm bảo import đúng config Firebase
+import { database as db } from '../../firebaseConfig';
 
 const ExpenseCharts = Platform.OS === 'web' ? ExpenseChartsWeb : ExpenseChartsApp;
 const generateChartData = Platform.OS === 'web' ? generateChartDataWeb : generateChartDataApp;
-
-
-export { ExpenseCharts, generateChartData };
 
 const ChartScreen = () => {
   const [showChart, setShowChart] = useState(false);
   const [chartData, setChartData] = useState(null);
   const [monthPageIndex, setMonthPageIndex] = useState(0);
-  const MONTHS_PER_PAGE = 6;
-  const hasScrolledToEnd = useRef(false);
   const [currentUserId, setCurrentUserId] = useState(null);
-  // Dữ liệu chi tiêu từ Firebase
   const [categoryExpenses, setCategoryExpenses] = useState({});
+  const MONTHS_PER_PAGE = 6;
 
+  const scrollViewRef = useRef(null);
+  const monthItemRefs = useRef({});
+  const hasScrolledToEnd = useRef(false);
+
+  // Lấy user hiện tại từ Firebase Auth
   useEffect(() => {
     const auth = getAuth();
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setCurrentUserId(user.uid);
       } else {
         setCurrentUserId(null);
-        setCategoryExpenses({}) // Xóa dữ liệu expenses nếu người dùng đăng xuất
+        setCategoryExpenses({});
+        setShowChart(false);
+        setChartData(null);
       }
     });
-    return () => unsubscribeAuth(); // Cleanup listener của auth
+    return () => unsubscribe();
   }, []);
-  // Lấy dữ liệu từ Firebase
-  // Lấy dữ liệu chi tiêu từ Firebase và parse lại
-useEffect(() => {
-  if (!currentUserId) {
-    // Nếu chưa có UID, không làm gì cả hoặc reset expenses
-    setCategoryExpenses({})
-    return;
-  }
 
-  const userExpensesRef = ref(db, `users/${currentUserId}/transactions`);
-  
-  const unsubscribeDB = onValue(userExpensesRef, (snapshot) => {
-    const data = snapshot.val();
-    const parsed = {};
+  // Lấy dữ liệu chi tiêu từ Firebase
+  useEffect(() => {
+    if (!currentUserId) return;
 
-    if (data) {
-      Object.entries(data).forEach(([expenseId, itemData]) => {
-        // Đảm bảo mỗi item có các trường cần thiết
-        if (itemData.date && itemData.amount != null) {
-          const dateObj = new Date(itemData.date); // Chuyển đổi date string hoặc timestamp thành Date
-          const monthKey = getMonthKey(dateObj); // Tạo monthKey từ ngày tháng
+    const userExpensesRef = ref(db, `users/${currentUserId}/transactions`);
+    const unsubscribe = onValue(userExpensesRef, (snapshot) => {
+      const data = snapshot.val() || {};
+      const parsed = {};
 
-          // Nếu chưa có tháng này trong parsed, khởi tạo
+      Object.entries(data).forEach(([id, item]) => {
+        if (item.date && item.amount != null) {
+          const dateObj = new Date(item.date);
+          const monthKey = getMonthKey(dateObj);
+
           if (!parsed[monthKey]) parsed[monthKey] = [];
-
           parsed[monthKey].push({
-            id: expenseId, // Dùng ID giao dịch từ Firebase làm id
-            description: itemData.note ||'N/A', // Ghi chú hoặc tên danh mục
-            amount: itemData.amount,
-            categoryIcon: itemData.categoryIcon, // Icon danh mục (nếu cần)
-            categoryId: itemData.categoryId,
-            categoryName: itemData.categoryName,// ID danh mục (nếu cần)
-            transactionType: itemData.transactionType, // Loại giao dịch (nếu cần)
-            date: itemData.date // Thêm ngày tháng vào mỗi giao dịch
+            id,
+            description: item.note || 'N/A',
+            amount: item.amount,
+            categoryIcon: item.categoryIcon,
+            categoryId: item.categoryId,
+            categoryName: item.categoryName,
+            transactionType: item.transactionType,
+            date: item.date
           });
         }
       });
-    }
 
-    setCategoryExpenses(parsed);
-  });
+      setCategoryExpenses(parsed);
+    });
 
-  return () => unsubscribeDB(); // Cleanup listener của database
-}, [currentUserId, db]);
-
-  
+    return () => unsubscribe();
+  }, [currentUserId]);
 
   const getMonthKey = (date) => {
-    if (!date || !(date instanceof Date) || isNaN(date)) {
-      const now = new Date();
-      return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
-    }
-    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+    const validDate = date instanceof Date && !isNaN(date) ? date : new Date();
+    return `${validDate.getFullYear()}-${String(validDate.getMonth() + 1).padStart(2, '0')}`;
   };
 
-  const initialCurrentMonthKey = getMonthKey(new Date());
-  const [selectedTimePeriod, setSelectedTimePeriod] = useState(initialCurrentMonthKey);
-
-  const scrollViewRef = useRef(null);
-  const monthItemRefs = useRef({});
+  const initialMonth = getMonthKey(new Date());
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState(initialMonth);
 
   const getMonthLabel = (monthKey) => {
     const now = new Date();
-    const [year, month] = monthKey.split('-').map(Number);
-    const d = new Date(year, month - 1);
+    const [y, m] = monthKey.split('-').map(Number);
+    const d = new Date(y, m - 1);
     const current = new Date(now.getFullYear(), now.getMonth());
     const previous = new Date(now.getFullYear(), now.getMonth() - 1);
 
-    if (d.getFullYear() === current.getFullYear() && d.getMonth() === current.getMonth()) return 'Tháng này';
-    if (d.getFullYear() === previous.getFullYear() && d.getMonth() === previous.getMonth()) return 'Tháng trước';
+    if (d.getTime() === current.getTime()) return 'Tháng này';
+    if (d.getTime() === previous.getTime()) return 'Tháng trước';
 
-    return `Thg ${d.getMonth() + 1} Năm ${d.getFullYear()}`;
+    return `Thg ${m} Năm ${y}`;
   };
-  
-  const getPastMonths = (numMonths) => {
-    const result = [];
+
+  const getPastMonths = (count) => {
+    const months = [];
     const now = new Date();
-    for (let i = 0; i < numMonths; i++) {
+    for (let i = 0; i < count; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() - i);
-      result.push(getMonthKey(d));
+      months.push(getMonthKey(d));
     }
-    return result;
+    return months;
   };
 
-
-  // Reset về trang đầu khi dữ liệu hoặc chế độ thay đổi
-  useEffect(() => {
-    setMonthPageIndex(0);
-  }, [categoryExpenses]);
-  
+  const allTimePeriods = getPastMonths(60); // 5 năm
   const pagedMonths = () => {
     const start = monthPageIndex * MONTHS_PER_PAGE;
-    const end = start + MONTHS_PER_PAGE;
-    return allTimePeriods.slice(start, end);  // Không cần đảo ngược
+    return allTimePeriods.slice(start, start + MONTHS_PER_PAGE);
   };
-  const allTimePeriods = getPastMonths(60); // 5 năm = 60 tháng
 
   const canGoPrev = monthPageIndex > 0;
   const canGoNext = (monthPageIndex + 1) * MONTHS_PER_PAGE < allTimePeriods.length;
 
-  const getExpensesForPeriod = (periodKey) => {
-    if (periodKey === 'Tháng này') return categoryExpenses[getMonthKey(new Date())] || [];
-    if (periodKey === 'Tháng trước') {
-      const d = new Date();
-      d.setMonth(d.getMonth() - 1);
-      return categoryExpenses[getMonthKey(d)] || [];
-    }
-    return categoryExpenses[periodKey] || [];
-  };
-
-  const selectedExpenses = getExpensesForPeriod(selectedTimePeriod);
-
-  const handlePeriodChange = (periodKey) => {
-    setSelectedTimePeriod(periodKey);
+  const handlePeriodChange = (key) => {
+    setSelectedTimePeriod(key);
     setShowChart(false);
     setChartData(null);
   };
 
+  const selectedExpenses = categoryExpenses[selectedTimePeriod] || [];
+
+  useEffect(() => {
+    setMonthPageIndex(0);
+  }, [categoryExpenses]);
+
+  // Auto scroll tháng hiện tại trên web
   useEffect(() => {
     if (Platform.OS === 'web' && scrollViewRef.current && !hasScrolledToEnd.current) {
       const timeout = setTimeout(() => {
-        scrollViewRef.current.scrollToEnd({ animated: false });
+        scrollViewRef.current?.scrollToEnd?.({ animated: false });
         hasScrolledToEnd.current = true;
-      }, 300); // Delay để đảm bảo render xong
-
+      }, 300);
       return () => clearTimeout(timeout);
     }
-  }, [categoryExpenses]);
+  }, [pagedMonths().join(',')]);
 
-  
-  // Scroll tự động tới tháng đã chọn (chỉ app, không áp dụng web)
+  // Auto scroll đến tháng đang chọn trên mobile
   useEffect(() => {
-    if (Platform.OS !== 'web' ) {
+    if (Platform.OS !== 'web') {
       const timeout = setTimeout(() => {
         const selectedRef = monthItemRefs.current[selectedTimePeriod];
-        if (selectedRef && scrollViewRef.current) {
+        if (selectedRef && scrollViewRef.current?.scrollTo) {
           selectedRef.measureLayout(
             scrollViewRef.current,
-            (x) => {
-              scrollViewRef.current.scrollTo({ x: x - 100, animated: true });
-            },
+            (x) => scrollViewRef.current.scrollTo({ x: x - 100, animated: true }),
             () => {}
           );
         }
@@ -186,21 +155,18 @@ useEffect(() => {
     }
   }, [selectedTimePeriod]);
 
-  const groupedExpenses = selectedExpenses.reduce((acc, expense) => {
-    if (expense.transactionType !== 'expense') return acc;  // Bỏ qua các giao dịch không phải chi tiêu
-
-    const categoryName = expense.categoryName === 'N/A' ? 'Không rõ' : expense.categoryName;  // Xử lý trường hợp 'N/A'
-
-    // Nếu categoryName chưa có trong acc, khởi tạo một mảng mới
-    if (!acc[categoryName]) {
-      acc[categoryName] = 0;
-    }
-
-    // Cộng dồn amount vào categoryName tương ứng
-    acc[categoryName] += expense.amount;
-
+  const groupedExpenses = selectedExpenses.reduce((acc, item) => {
+    if (item.transactionType !== 'expense') return acc;
+    const name = item.categoryName || 'Không rõ';
+    acc[name] = (acc[name] || 0) + item.amount;
     return acc;
   }, {});
+const categoryIconsMap = {};
+selectedExpenses.forEach(item => {
+  if (item.transactionType === 'expense' && item.categoryName && item.categoryIcon) {
+    categoryIconsMap[item.categoryName] = item.categoryIcon;
+  }
+});
 
   return (
     <SafeAreaView style={styles.container}>
@@ -210,39 +176,38 @@ useEffect(() => {
             <Text style={styles.headerTitle}>Chi tiêu</Text>
           </View>
         </View>
+
         <View style={styles.timePeriodControls}>
           {Platform.OS === 'web' ? (
             <View style={styles.webMonthPagination}>
               <TouchableOpacity
-                onPress={() => setMonthPageIndex(prev => Math.max(0, prev - 1))}
                 disabled={!canGoPrev}
                 style={[styles.arrowButton, !canGoPrev && styles.arrowDisabled]}
+                onPress={() => setMonthPageIndex(p => Math.max(p - 1, 0))}
               >
                 <Text style={styles.arrowText}>◀</Text>
               </TouchableOpacity>
 
               <ScrollView ref={scrollViewRef} horizontal showsHorizontalScrollIndicator={false}>
                 <View style={styles.timePeriodRow}>
-                  {pagedMonths().map((period, index) => {
-                    const label = getMonthLabel(period);
-                    return (
-                      <TouchableOpacity
-                        key={index}
-                        style={[styles.timePeriodItem, selectedTimePeriod === period && styles.timePeriodItemActive]}
-                        onPress={() => handlePeriodChange(period)}
-                      >
-                        <Text style={[styles.timePeriodText, selectedTimePeriod === period && styles.timePeriodTextActive]}>
-                          {label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+                  {pagedMonths().map((monthKey, i) => (
+                    <TouchableOpacity
+                      key={monthKey}
+                      style={[styles.timePeriodItem, selectedTimePeriod === monthKey && styles.timePeriodItemActive]}
+                      onPress={() => handlePeriodChange(monthKey)}
+                    >
+                      <Text style={[styles.timePeriodText, selectedTimePeriod === monthKey && styles.timePeriodTextActive]}>
+                        {getMonthLabel(monthKey)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </ScrollView>
+
               <TouchableOpacity
-                onPress={() => setMonthPageIndex(prev => prev + 1)}
                 disabled={!canGoNext}
                 style={[styles.arrowButton, !canGoNext && styles.arrowDisabled]}
+                onPress={() => setMonthPageIndex(p => Math.min(p + 1, Math.floor(allTimePeriods.length / MONTHS_PER_PAGE)))}
               >
                 <Text style={styles.arrowText}>▶</Text>
               </TouchableOpacity>
@@ -250,65 +215,90 @@ useEffect(() => {
           ) : (
             <ScrollView ref={scrollViewRef} horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.timePeriodRow}>
-                {allTimePeriods.map((period, index) => {
-                  const label = getMonthLabel(period);
-                  return (
-                    <TouchableOpacity
-                      key={index}
-                      ref={(el) => {
-                        if (el) monthItemRefs.current[period] = el;
-                      }}
-                      style={[styles.timePeriodItem, selectedTimePeriod === period && styles.timePeriodItemActive]}
-                      onPress={() => handlePeriodChange(period)}
-                    >
-                      <Text style={[styles.timePeriodText, selectedTimePeriod === period && styles.timePeriodTextActive]}>
-                        {label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                {allTimePeriods.map((monthKey) => (
+                  <TouchableOpacity
+                    key={monthKey}
+                    ref={el => el && (monthItemRefs.current[monthKey] = el)}
+                    style={[styles.timePeriodItem, selectedTimePeriod === monthKey && styles.timePeriodItemActive]}
+                    onPress={() => handlePeriodChange(monthKey)}
+                  >
+                    <Text style={[styles.timePeriodText, selectedTimePeriod === monthKey && styles.timePeriodTextActive]}>
+                      {getMonthLabel(monthKey)}
+                    </Text>
+                  </TouchableOpacity>
+                  
+                ))}
               </View>
             </ScrollView>
           )}
         </View>
+
         <View style={styles.contentArea}>
-          {Object.entries(groupedExpenses).map(([categoryName, totalAmount]) => (
-            <View key={categoryName} style={styles.expenseItem}>
-              <Text style={styles.expenseText}>
-                {categoryName}: {totalAmount} VNĐ
-              </Text>
-            </View>
-          ))}
-          <TouchableOpacity
-            style={styles.chartButton}
-            onPress={() => {
-              const currentSelectedDate = new Date(selectedTimePeriod);
-              const year = currentSelectedDate.getFullYear();
-              const month = currentSelectedDate.getMonth() + 1; // getMonth() từ 0-11, nên +1
+          {Object.entries(groupedExpenses).length ? (
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1 }}>
+                {Object.entries(groupedExpenses).map(([name, amount]) => (
+                  <View key={name} style={styles.expenseItem}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name={categoryIconsMap[name] || 'help-outline'} size={20} color="#666" style={{ marginRight: 8 }} />
+                      <Text style={styles.expenseText}>
+                        {name}: {amount.toLocaleString('vi-VN')} VNĐ
+                      </Text>
+                    </View>
+                  </View>
 
-              const chart = generateChartData(selectedExpenses, year, month);
-              setChartData(chart);
-              setShowChart(true);
-            }}
-          >
-            <Text style={styles.chartButtonText}>Xem biểu đồ</Text>
-          </TouchableOpacity>
+                ))}
+              </View>
 
-          <Modal
-            visible={showChart}
-            animationType="slide"
-            transparent={true}
-            onRequestClose={() => setShowChart(false)}
-          >
-            <View style={styles.modalBackground}>
-              <View style={styles.modalContainer}>
-                {chartData ? <ExpenseCharts chartData={chartData} /> : null}
-                <TouchableOpacity style={styles.closeButton} onPress={() => setShowChart(false)}>
-                  <Text style={styles.closeButtonText}>Đóng</Text>
-                </TouchableOpacity>
+              {/* Switch bật/tắt biểu đồ ở bên phải */}
+              <View style={{ marginLeft: 20, alignItems: 'center', justifyContent: 'center' }}>
+                {chartData && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ marginRight: 10 }}>Hiện biểu đồ</Text>
+                    <Switch value={showChart} onValueChange={setShowChart} />
+                  </View>
+                )}
               </View>
             </View>
-          </Modal>
+          ) : (
+            <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
+              <Ionicons name="stats-chart-outline" size={48} color="#AAAAAA" />
+              <Text style={{ color: '#AAAAAA', fontSize: 16, marginTop: 10 }}>
+                Không có dữ liệu chi tiêu cho tháng này.
+              </Text>
+            </View>
+          )}
+
+
+          
+
+          {/* Hiển thị biểu đồ */}
+          {chartData && showChart && (
+            <View style={styles.chartDisplayArea}>
+              <ExpenseCharts chartData={chartData} />
+            </View>
+          )}
+          {/* Nút Xem/Cập nhật biểu đồ vẫn ở dưới */}
+          {Object.entries(groupedExpenses).length > 0 && (
+            <TouchableOpacity
+              style={styles.chartButton}
+              onPress={() => {
+                if (!selectedExpenses.length) {
+                  setShowChart(false);
+                  alert("Không có dữ liệu chi tiêu để vẽ biểu đồ cho tháng này.");
+                  return;
+                }
+                const [y, m] = selectedTimePeriod.split('-').map(Number);
+                const chart = generateChartData(selectedExpenses, y, m);
+                setChartData(chart);
+                setShowChart(true);
+              }}
+            >
+              <Text style={styles.chartButtonText}>
+                {showChart && chartData ? "Cập nhật biểu đồ" : "Xem biểu đồ"}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
