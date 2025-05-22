@@ -90,7 +90,7 @@ export const generateChartData = (expenses: Expense[], year: number, month: numb
 
   // Gán màu và tạo pieChartData
   const pieChartData = finalCategories.map((category, idx) => ({
-    name: `${category.name} (${category.percentage.toFixed(1)}%)`,
+    name: category.name,
     amount: category.amount,
     color: fixedColors[idx % fixedColors.length],
     legendFontColor: '#333',
@@ -160,13 +160,16 @@ const ExpenseCharts: React.FC<ExpenseChartsProps> = ({ chartData }) => {
         <Text style={{ fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 10 }}>
           Thống kê theo thời gian
         </Text>
-        <LineChart
-          data={chartData.lineChartData}
-          width={screenWidth - 10}
-          height={220}
-          chartConfig={chartConfig}
-          bezier
-        />
+        <View style={{ alignItems: 'center', marginVertical: 10 }}>
+          <LineChart
+            data={chartData.lineChartData}
+            width={screenWidth - 10} // hoặc số nhỏ hơn nếu muốn có padding hai bên
+            height={220}
+            chartConfig={chartConfig}
+            bezier
+          />
+        </View>
+
       </View>
 
       <Text style={{ textAlign: 'center', fontSize: 16 }}>
