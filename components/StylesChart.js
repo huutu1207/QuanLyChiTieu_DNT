@@ -138,7 +138,7 @@ timePeriodControls: {
     paddingHorizontal: 10,
   },
 
-  timePeriodItem: {
+  timePeriodItemSmall: {
     backgroundColor: '#eee',
     borderRadius: 20,
     paddingHorizontal: 12,
@@ -146,16 +146,16 @@ timePeriodControls: {
     marginHorizontal: 5,
   },
 
-  timePeriodItemActive: {
+  timePeriodItemActiveSmall: {
     backgroundColor: '#4CAF50',
   },
 
-  timePeriodText: {
+  timePeriodTextSmall: {
     fontSize: 14,
     color: '#333',
   },
 
-  timePeriodTextActive: {
+  timePeriodTextActiveSmall: {
     color: '#fff',
     fontWeight: 'bold',
   },
