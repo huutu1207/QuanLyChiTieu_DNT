@@ -1,5 +1,6 @@
 import {
   createUserWithEmailAndPassword,
+  fetchSignInMethodsForEmail,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
 } from 'firebase/auth';
@@ -51,6 +52,7 @@ export const AuthScreen = () => {
     try {
       await signInWithEmailAndPassword(firebaseAuth, email, password);
       console.log("Đăng nhập thành công");
+      // clearFormState(); // Optionally clear form on successful login
     } catch (error) {
       console.error("Lỗi Đăng nhập:", error.code, error.message);
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
@@ -86,11 +88,11 @@ export const AuthScreen = () => {
       const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
       const user = userCredential.user;
       const creationTime = user.metadata.creationTime
-                            ? new Date(user.metadata.creationTime).toLocaleDateString('vi-VN')
-                            : new Date().toLocaleDateString('vi-VN');
+        ? new Date(user.metadata.creationTime).toLocaleDateString('vi-VN')
+        : new Date().toLocaleDateString('vi-VN');
 
       const newUserProfileData = {
-        name: user.email,
+        name: user.email, // Or a displayName if you collect it
         email: user.email,
         joinDate: creationTime,
         uid: user.uid,
@@ -111,7 +113,8 @@ export const AuthScreen = () => {
       }
 
       console.log("Đăng ký thành công!");
-
+      // clearFormState(); // Optionally clear form on successful registration
+      // setAuthMode('login'); // Optionally switch to login mode
     } catch (error) {
       console.error("Lỗi Đăng ký:", error.code, error.message);
       if (error.code === 'auth/email-already-in-use') {
@@ -137,16 +140,27 @@ export const AuthScreen = () => {
     setIsSendingResetEmail(true);
     setErrorMessage('');
     try {
-      await sendPasswordResetEmail(firebaseAuth, email);
-      setErrorMessage('Một email hướng dẫn đặt lại mật khẩu đã được gửi đến địa chỉ email của bạn (nếu tài khoản tồn tại). Vui lòng kiểm tra hộp thư, kể cả mục spam.');
-    } catch (error) {
-      console.error("Lỗi Gửi Email Đặt Lại Mật Khẩu:", error.code, error.message);
-      if (error.code === 'auth/user-not-found') {
+      // Check if email exists
+      const signInMethods = await fetchSignInMethodsForEmail(firebaseAuth, email);
+      if (signInMethods.length === 0) {
+        // Email does not exist
         setErrorMessage('Không tìm thấy tài khoản nào ứng với địa chỉ email này.');
-      } else if (error.code === 'auth/invalid-email') {
-        setErrorMessage('Địa chỉ email không hợp lệ.');
       } else {
-        setErrorMessage('Đã có lỗi xảy ra khi gửi email đặt lại mật khẩu. Vui lòng thử lại.');
+        // Email exists, proceed to send reset email
+        await sendPasswordResetEmail(firebaseAuth, email);
+        setErrorMessage('Một email hướng dẫn đặt lại mật khẩu đã được gửi đến địa chỉ email của bạn. Vui lòng kiểm tra hộp thư, kể cả mục spam.');
+      }
+    } catch (error) {
+      console.error("Lỗi Gửi Email Đặt Lại Mật Khẩu hoặc Kiểm Tra Email:", error.code, error.message);
+      // The 'auth/user-not-found' error might still occur if there's a race condition or other Firebase issue,
+      // but fetchSignInMethodsForEmail should catch most cases.
+      if (error.code === 'auth/invalid-email') {
+        setErrorMessage('Địa chỉ email không hợp lệ.');
+      } else if (error.code === 'auth/user-not-found') { // Keep this as a fallback
+         setErrorMessage('Không tìm thấy tài khoản nào ứng với địa chỉ email này.');
+      }
+      else {
+        setErrorMessage('Đã có lỗi xảy ra. Vui lòng thử lại.');
       }
     } finally {
       setIsSendingResetEmail(false);
@@ -282,7 +296,7 @@ export const AuthScreen = () => {
 
           {authMode === 'forgotPassword' && (
             <TouchableOpacity
-              onPress={() => { setAuthMode('login'); clearFormState(true);}}
+              onPress={() => { setAuthMode('login'); clearFormState(true);}} // Keep email when switching back
               disabled={isAnySubmitting}
               style={styles.switchButtonFullWidth}
             >
